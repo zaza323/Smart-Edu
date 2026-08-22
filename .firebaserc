@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "default": "smart-edu-pro-d012b"
+  },
+  "targets": {
+    "smart-edu-pro-d012b": {
+      "hosting": {
+        "question-bank": ["smart-edu-question-bank"]
+      }
+    }
+  }
+}

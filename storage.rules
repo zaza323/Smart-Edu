@@ -1,0 +1,57 @@
+rules_version = '2';
+
+// ============================================================================
+//  Smart Edu Pro — قواعد Firebase Storage (مدموجة: الموقع القديم + بنك الأسئلة)
+// ----------------------------------------------------------------------------
+//  القواعد السابقة كانت:  match /{allPaths=**} { allow read, write: if request.auth != null; }
+//  أي أن **أي حساب مسجَّل** كان يستطيع الكتابة على أي ملف وحذفه — بما فيها دوسيات
+//  المعلمين. مع فتح التسجيل الذاتي للطلاب في بنك الأسئلة صار هذا خطراً مباشراً،
+//  فتم تضييقه هنا مع الحفاظ على عمل `dashboard.html` كما هو تماماً.
+//
+//  تم التحقق قبل التضييق:
+//   - `dashboard.html` يستخدم `getBlob` فقط (قراءة) ولا يرفع أي ملف من المتصفح.
+//   - الحاوية تحتوي 3 ملفات PDF، جميعها في جذر الحاوية بلا أي مجلدات فرعية.
+// ============================================================================
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // ---------- إثباتات الدفع (بنك الأسئلة) ----------
+    // مسار من 3 مقاطع، فلا تشمله قاعدة ملفات الجذر أدناه.
+    match /paymentProofs/{uid}/{fileName} {
+      // الطالب يقرأ إثباتاته فقط، والأدمن يقرأ الكل
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+
+      // صورة فقط + بحد أقصى 5 ميغابايت (قسم 9/5 من الـ PRD)
+      allow create: if isSignedIn()
+                    && request.auth.uid == uid
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('image/(jpeg|png|webp|heic|heif)');
+
+      allow update: if false;   // لا استبدال — كل إثبات جديد ملف مستقل
+      allow delete: if isAdmin();
+    }
+
+    // ---------- ملفات Word المرفوعة للاستيراد ----------
+    match /imports/{subjectId}/{fileName} {
+      allow read, write: if isAdmin();   // الإدارة فقط — لا يراها أي طالب
+    }
+
+    // ---------- دوسيات المعلمين (الموقع القديم، في جذر الحاوية) ----------
+    // مقطع واحد فقط = ملفات الجذر حصراً.
+    match /{fileName} {
+      allow read: if isSignedIn();   // كما كان: أي معلم مسجَّل يستطيع العرض
+      allow write: if isAdmin();     // كان مفتوحاً لأي مسجَّل — الآن للإدارة فقط
+    }
+
+    // أي مسار آخر مرفوض افتراضياً (لا حاجة لقاعدة صريحة).
+  }
+}

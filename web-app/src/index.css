@@ -1,0 +1,489 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   توكنات الألوان — المصدر الوحيد لكل لون في الموقع.
+   القيم قنوات RGB لا hex، حتى تعمل معدِّلات الشفافية في Tailwind
+   (`bg-accent/10`, `border-zinc-700/60` ...).
+
+   `data-theme` يُكتب على <html> قبل رسم الصفحة عبر سكربت في index.html،
+   فلا توجد وميضة لون عند التحميل.
+   ========================================================================== */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --c-base: 24 24 27; /* #18181b */
+  --c-surface: 33 33 36; /* #212124 */
+  --c-surface2: 42 42 46; /* #2a2a2e */
+  --c-surface-card: 35 35 38; /* #232326 */
+  --c-accent: 240 232 148; /* #f1e994 */
+  --c-accent-hover: 220 211 116; /* #dcd374 */
+  --c-warn: 245 166 35; /* #f5a623 */
+  --c-critical: 230 88 79; /* #e6584f */
+  --c-ink: 245 245 240; /* #f5f5f0 */
+  --c-ink-muted: 154 154 165; /* #9a9aa5 */
+
+  /* سلّم zinc القياسي */
+  --c-zinc-50: 250 250 250;
+  --c-zinc-100: 244 244 245;
+  --c-zinc-200: 228 228 231;
+  --c-zinc-300: 212 212 216;
+  --c-zinc-400: 161 161 170;
+  /* zinc-500 القياسي (#71717a) يعطي 3.32:1 فقط على سطح البطاقات — دون الحد
+     الأدنى 4.5:1، وهو مستخدم في النصوص المكتومة بكل الصفحات. رفعه درجة يصل
+     به إلى 4.75:1 مع بقائه «مكتوماً» بصرياً. */
+  --c-zinc-500: 138 138 148;
+  --c-zinc-600: 82 82 91;
+  --c-zinc-700: 63 63 70;
+  --c-zinc-800: 39 39 42;
+  --c-zinc-900: 24 24 27;
+
+  /* مشتقات: ظلال وتدرّجات */
+  --c-shadow: 0 0 0;
+  --shadow-card-strength: 0.95;
+  --c-progress-from: 249 244 207; /* #f9f4cf */
+  --c-progress-mid: 240 232 148; /* #f1e994 */
+  --c-progress-to: 211 201 106; /* #d3c96a */
+  --c-on-accent: 24 24 27; /* لون النص فوق الذهبي */
+  --glow-strength: 1;
+
+  /* أصفر الشعار (#f1e994) — يبقى كما هو في الوضعين لأنه يُستخدم كـ«تعبئة»:
+     خلفيات الأزرار، وحلقة المؤقّت، وشريط التقدّم. قياسه: نص داكن فوقه 14.19:1. */
+  --c-accent-fill: 240 232 148;
+  --c-accent-fill-hover: 220 211 116;
+  --c-ring-track: 42 42 46;
+
+  /* قوس المؤقّت: ثابت في الوضعين لأنه يُرسم فوق مسار الحلقة الداكن */
+  --c-timer-safe: 240 232 148;
+  --c-timer-warn: 245 166 35;
+  --c-timer-critical: 230 88 79;
+  /* رقم المؤقّت: يجلس على خلفية الصفحة فيتبع الوضع */
+  --c-timer-label-safe: 240 232 148;
+  --c-timer-label-warn: 245 166 35;
+  --c-timer-label-critical: 230 88 79;
+
+  /* أزرق الشعار #7d9fc8 — اللون الأساسي الثاني.
+     `--c-brand` للتعبئات (يبقى كما هو في الوضعين)،
+     `--c-brand-ink` للنصوص (يُغمَّق في الوضع الفاتح ليُقرأ على الأبيض). */
+  --c-brand: 125 159 200;
+  --c-brand-ink: 125 159 200;
+
+  /* الدرجات الفاتحة من الألوان الدلالية — قيمها القياسية في الوضع الداكن */
+  --c-sky-200: 186 230 253;
+  --c-sky-300: 125 211 252;
+  --c-emerald-200: 167 243 208;
+  --c-emerald-300: 110 231 183;
+  --c-amber-200: 253 230 138;
+  --c-amber-300: 252 211 77;
+  --c-red-200: 254 202 202;
+  --c-red-300: 252 165 165;
+  --c-red-400: 248 113 113;
+  --c-orange-300: 253 186 116;
+
+  --pattern-opacity: 0.05;
+  --islamic-pattern: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2788%27%20height%3D%2788%27%20viewBox%3D%270%200%2088%2088%27%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23000%27%20stroke-width%3D%271.6%27%3E%3Cpath%20d%3D%27M22%2022h44v44H22z%27%2F%3E%3Cpath%20d%3D%27M44%2014%2074%2044%2044%2074%2014%2044Z%27%2F%3E%3Cpath%20d%3D%27M0%200h22v22H0zM66%200h22v22H66zM0%2066h22v22H0zM66%2066h22v22H66z%27%20stroke-width%3D%271%27%2F%3E%3Ccircle%20cx%3D%2744%27%20cy%3D%2744%27%20r%3D%277%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+}
+
+/**
+ * الوضع الفاتح.
+ * سلّم zinc مقلوب: ما كان فاتحاً في الداكن (نص) يصير داكناً، وما كان داكناً
+ * (حدود/خلفيات) يصير فاتحاً — فتتوافق كل الشاشات القائمة دون تعديل أي مكوّن.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --c-base: 250 248 243; /* #faf8f3 أبيض دافئ عاجي */
+  --c-surface: 255 255 255; /* #ffffff */
+  --c-surface2: 242 238 229; /* #f2eee5 */
+  --c-surface-card: 255 255 255; /* #ffffff */
+  /* أصفر الهوية هو اللون الأساسي في الوضعين — بقرار صريح من صاحب المشروع.
+     لا يُستخدم أي ذهبي داكن هنا إطلاقاً. */
+  --c-accent: 240 232 148; /* #f0e894 */
+  --c-accent-hover: 220 211 116; /* #dcd374 */
+  /* المستند اقترح #d6820a، لكن قياسه أعطى 2.8:1 على الخلفية الفاتحة — دون
+     الحد حتى للنص الكبير (3:1). التغميق يرفعه إلى 4.71:1. */
+  --c-warn: 163 95 7; /* #a35f07 */
+  --c-critical: 201 67 58; /* #c9433a — قيس 4.55:1، مطابق */
+  --c-ink: 31 31 35; /* #1f1f23 */
+  --c-ink-muted: 107 107 118; /* #6b6b76 */
+
+  /* سلّم zinc مقلوب */
+  --c-zinc-50: 24 24 27; /* عناوين */
+  --c-zinc-100: 31 31 35; /* نص أساسي */
+  --c-zinc-200: 39 39 42;
+  --c-zinc-300: 63 63 70;
+  --c-zinc-400: 82 82 91; /* نص ثانوي بارز */
+  --c-zinc-500: 113 113 122; /* نص مكتوم (تباين 4.6:1 على الخلفية) */
+  --c-zinc-600: 148 148 158; /* نص خافت جداً */
+  --c-zinc-700: 214 210 200; /* حدود واضحة */
+  --c-zinc-800: 229 225 216; /* حدود خفيفة وخلفيات شرائح */
+  --c-zinc-900: 242 238 229; /* خلفيات مكتومة */
+
+  --c-shadow: 40 35 25;
+  --shadow-card-strength: 0.16;
+  /* شريط التقدّم يبقى بأصفر الشعار كالوضع الداكن، والمسار خلفه يُغمَّق ليبرز. */
+  --c-progress-from: 249 244 207;
+  --c-progress-mid: 240 232 148;
+  --c-progress-to: 211 201 106;
+  --c-on-accent: 24 24 27; /* نص داكن فوق أصفر الشعار */
+  --glow-strength: 0.35; /* توهّج أخفت — التوهّج مفهوم بصري داكن */
+
+  /* أصفر الشعار يبقى هو التعبئة هنا أيضاً، لكن مساراته تُغمَّق ليبرز فوقها:
+     أصفر الشعار فوق رمادي متوسط = 4.22:1 (الحد 3:1 للعناصر غير النصية). */
+  --c-ring-track: 42 42 46; /* مسار الحلقة خط داكن ليبرز القوس الأصفر فوقه */
+  --c-timer-label-safe: 31 31 35; /* حبر — الأصفر لا يُقرأ على خلفية فاتحة */
+  --c-timer-label-warn: 163 95 7;
+  --c-timer-label-critical: 201 67 58;
+
+  /* أزرق الشعار يبقى كما هو كتعبئة؛ نسخته الداكنة للنصوص (6.96:1 على الأبيض) */
+  --c-brand: 125 159 200;
+  --c-brand-ink: 47 92 138;
+
+  /* الدرجات الفاتحة تُقلَب لدرجات داكنة من نفس اللون */
+  --c-sky-200: 7 89 133;
+  --c-sky-300: 3 105 161;
+  --c-emerald-200: 6 95 70;
+  --c-emerald-300: 4 120 87;
+  --c-amber-200: 120 53 15;
+  --c-amber-300: 146 64 14; /* قيس 4.23:1 بالدرجة الأفتح — دون الحد 4.5 */
+  --c-red-200: 153 27 27;
+  --c-red-300: 185 28 28;
+  --c-red-400: 220 38 38;
+  --c-orange-300: 194 65 12;
+
+  --pattern-opacity: 0.07; /* أعلى قليلاً: الذهبي أقل بروزاً على خلفية فاتحة */
+}
+
+/* ==========================================================================
+   الوضع الفاتح — أصفر الهوية `#f0e894` هو اللون الأساسي في كل شيء.
+
+   القيد الفيزيائي الوحيد: أصفر فاتح على خلفية فاتحة لا يُقرأ (1.25:1).
+   الحل المعتمد هنا لا يغيّر اللون بل يغيّر ما تحته: العناصر التي يكون فيها
+   الأصفر «مقدمة» (رقم المؤقّت، حلقته، شريط التقدّم) تُوضع فوق سطح داكن —
+   فيبقى الأصفر كما هو ويبقى مقروءاً.
+   ========================================================================== */
+
+:root[data-theme='light'] .text-accent {
+  color: rgb(var(--c-ink));
+}
+/* الشفافيات كذلك — `text-accent/90` صنف مستقل لا يشمله ما سبق */
+:root[data-theme='light'] [class*='text-accent/'] {
+  color: rgb(var(--c-ink));
+}
+
+/* المرور على أزرار الإطار: التمييز يصير بتعبئة صفراء بدل نص أصفر */
+:root[data-theme='light'] .btn-ghost:hover {
+  border-color: rgb(var(--c-accent));
+  background-color: rgb(var(--c-accent) / 0.45);
+  color: rgb(var(--c-ink));
+}
+
+/* الحدود الرفيعة الصفراء تختفي على الأبيض — تُستبدل بحبر شفاف */
+:root[data-theme='light'] .exam-card {
+  border-color: rgb(var(--c-ink) / 0.12);
+}
+:root[data-theme='light'] .exam-option-selected {
+  border-color: rgb(var(--c-ink) / 0.55);
+  background-color: rgb(var(--c-accent) / 0.45);
+  color: rgb(var(--c-ink));
+}
+
+/* حلقة التركيز: صفراء على أبيض غير مرئية، فتُدعَّم بحلقة حبر */
+:root[data-theme='light'] .btn:focus-visible,
+:root[data-theme='light'] .field:focus-visible,
+:root[data-theme='light'] .exam-option:focus-visible {
+  box-shadow:
+    0 0 0 3px rgb(var(--c-accent)),
+    0 0 0 5px rgb(var(--c-ink) / 0.55);
+}
+:root[data-theme='light'] .field:focus {
+  border-color: rgb(var(--c-ink) / 0.45);
+}
+
+:root[data-theme='light'] .btn-primary {
+  background-color: rgb(var(--c-accent-fill));
+  color: rgb(var(--c-on-accent));
+}
+:root[data-theme='light'] .btn-primary:hover {
+  background-color: rgb(var(--c-accent-fill-hover));
+}
+:root[data-theme='light'] .bg-accent {
+  background-color: rgb(var(--c-accent-fill) / var(--tw-bg-opacity, 1));
+}
+:root[data-theme='light'] .exam-option-selected .exam-letter {
+  background-color: rgb(var(--c-accent-fill));
+  border-color: rgb(var(--c-accent-fill));
+  color: rgb(var(--c-on-accent));
+}
+:root[data-theme='light'] .exam-progress-track {
+  background-color: rgb(var(--c-ring-track));
+  border-color: rgb(var(--c-ink-muted));
+}
+
+@layer utilities {
+  /**
+   * لون النص فوق سطح ذهبي.
+   * بديل صريح لـ `text-base` الذي كان يُستخدم لهذا الغرض: `base` اسم لون واسم
+   * حجم خط في Tailwind معاً، فيُخرج الاثنين — ثم في الوضع الفاتح صار يعني
+   * «لون خلفية الصفحة الفاتح» فأصبح النص شبه أبيض فوق أصفر (1.18:1).
+   */
+  .on-accent {
+    color: rgb(var(--c-on-accent));
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-base text-zinc-100 font-cairo antialiased;
+    -webkit-tap-highlight-color: transparent;
+    /* بلا transition على background-color هنا عمداً: عند تغيّر متغيّر CSS يعلق
+       الانتقال على القيمة القديمة في Chrome فتبقى الخلفية بلون الوضع السابق.
+       اختُبر فعلياً — الخلفية بقيت فاتحة بعد التبديل للداكن. */
+  }
+
+  /* شريط تمرير بهوية الموقع */
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgb(var(--c-base));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--c-zinc-700));
+    border-radius: 9px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--c-accent));
+  }
+
+  input,
+  select,
+  textarea {
+    @apply font-cairo;
+  }
+}
+
+@layer components {
+  .btn {
+    /* whitespace-nowrap: نصوص الأزرار قصيرة ولا يصحّ أن تلتفّ على سطرين داخل زر */
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-3
+           font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
+           active:scale-[0.98] select-none;
+  }
+  .btn-primary {
+    @apply btn bg-accent on-accent hover:bg-accentHover shadow-lg shadow-accent/10;
+  }
+  .btn-ghost {
+    @apply btn border border-zinc-700 text-zinc-200 hover:border-accent hover:text-accent;
+  }
+  .btn-danger {
+    @apply btn bg-red-600/90 text-white hover:bg-red-600;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm rounded-lg;
+  }
+
+  .card {
+    @apply bg-surface border border-zinc-800 rounded-2xl shadow-xl shadow-black/20;
+  }
+
+  /* شريط تنقّل قابل للانزلاق أفقياً عند ضيق المساحة، بلا شريط تمرير مرئي */
+  .nav-scroll {
+    scrollbar-width: none;
+  }
+  .nav-scroll::-webkit-scrollbar {
+    height: 0;
+    display: none;
+  }
+
+  .field {
+    @apply w-full bg-surface2 border border-zinc-700 rounded-xl px-4 py-3 text-zinc-100
+           placeholder:text-zinc-500 outline-none transition
+           focus:border-accent focus:ring-2 focus:ring-accent/25;
+  }
+
+  .label {
+    @apply block mb-2 text-sm font-semibold text-zinc-300;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold;
+  }
+
+  /**
+   * الشعار مصمَّم لخلفية داكنة: قياس فعليّ للملف أظهر 91% شفافية، ومتوسط سطوع
+   * 180 للبكسلات المرئية، وصفر بكسلات داكنة — أي أنه يكاد يختفي على #faf8f3.
+   * الحل هنا مؤقّت وآمن: لوحة داكنة صغيرة خلفه في الوضع الفاتح فقط، تحفظ
+   * وضوحه دون المساس بالملف. البديل الدائم نسخة شعار مخصّصة للوضع الفاتح،
+   * وهو قرار تصميمي يخصّ صاحب المشروع (بند 4 من وثيقة الوضعين).
+   */
+  .brand-logo {
+    @apply w-auto;
+  }
+  :root[data-theme='light'] .brand-logo {
+    background: rgb(var(--c-zinc-50));
+    border-radius: 0.7rem;
+    padding: 0.3rem 0.45rem;
+    box-shadow: 0 2px 10px -4px rgb(var(--c-shadow) / 0.35);
+  }
+
+  /* طبقة حماية سطحية إضافية (قسم 5.6) — تُطبَّق على محتوى الأسئلة فقط */
+  .no-copy {
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+}
+
+/* ==========================================================================
+   واجهة الاختبار — طبقة عرض فقط (لا تمسّ أي منطق برمجي)
+   ========================================================================== */
+@layer components {
+  /**
+   * نقش هندسي إسلامي (نجمة ثمانية متشابكة) كطبقة خلفية للصفحة.
+   * يُرسم عبر `mask` لا كصورة ملوّنة، فيأخذ لونه من `--c-accent` ويتبع الوضعين
+   * تلقائياً. طبقة ثابتة خلف كل المحتوى (z-index سالب)، والبطاقات فوقها بخلفية
+   * صلبة فلا يتداخل النقش مع أي نص.
+   */
+  .exam-bg {
+    position: relative;
+  }
+  .exam-bg::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: rgb(var(--c-accent));
+    opacity: var(--pattern-opacity);
+    -webkit-mask-image: var(--islamic-pattern);
+    mask-image: var(--islamic-pattern);
+    -webkit-mask-size: 88px 88px;
+    mask-size: 88px 88px;
+    -webkit-mask-repeat: repeat;
+    mask-repeat: repeat;
+  }
+
+  /* بطاقة السؤال: فصل بصري عن الخلفية بتوهّج ذهبي شفاف جداً بدل خط صريح */
+  .exam-card {
+    @apply bg-surfaceCard border border-accent/[0.14] rounded-2xl;
+    box-shadow:
+      0 20px 44px -28px rgb(var(--c-shadow) / var(--shadow-card-strength)),
+      0 0 38px -20px rgb(var(--c-accent) / calc(0.3 * var(--glow-strength))),
+      inset 0 1px 0 0 rgb(255 255 255 / 0.03);
+  }
+
+  /* --------- شريط التقدّم: أثخن + تدرّج ذهبي --------- */
+  .exam-progress-track {
+    @apply h-3.5 w-full rounded-full overflow-hidden bg-zinc-800/90 border border-zinc-700/60;
+  }
+  .exam-progress-fill {
+    @apply h-full rounded-full;
+    background: linear-gradient(
+      90deg,
+      rgb(var(--c-progress-from)) 0%,
+      rgb(var(--c-progress-mid)) 48%,
+      rgb(var(--c-progress-to)) 100%
+    );
+    box-shadow: 0 0 14px -3px rgb(var(--c-accent) / calc(0.55 * var(--glow-strength)));
+    transition: width 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* --------- بطاقات الخيارات (أ ب ج د) --------- */
+  .exam-option {
+    @apply w-full text-right flex items-start gap-3 rounded-2xl border px-4 py-3.5
+           bg-surfaceCard border-zinc-700/70 text-zinc-300;
+    transition:
+      background-color 240ms ease,
+      border-color 240ms ease,
+      color 240ms ease,
+      box-shadow 240ms ease,
+      transform 240ms ease;
+  }
+
+  /* حالة المرور: ارتفاع خفيف + حدود أوضح (أجهزة المؤشّر فقط، حتى لا تعلق باللمس) */
+  @media (hover: hover) and (pointer: fine) {
+    .exam-option:hover {
+      @apply border-zinc-500;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 26px -16px rgb(var(--c-shadow) / var(--shadow-card-strength));
+    }
+    .exam-option:hover .exam-letter {
+      @apply border-zinc-500 text-zinc-200;
+    }
+  }
+
+  /* حالة Focus بلوحة المفاتيح — واضحة وصريحة */
+  .exam-option:focus-visible {
+    @apply outline-none border-accent;
+    box-shadow: 0 0 0 3px rgb(var(--c-accent) / 0.45);
+  }
+  .exam-option:active {
+    transform: translateY(0) scale(0.995);
+  }
+
+  /* حالة الاختيار: تلوين ذهبي شفاف + حدود ذهبية + امتلاء دائرة الحرف */
+  .exam-option-selected {
+    @apply border-accent text-ink;
+    background-color: rgb(var(--c-accent) / 0.1);
+    box-shadow:
+      0 0 0 1px rgb(var(--c-accent) / 0.35),
+      0 0 26px -14px rgb(var(--c-accent) / calc(0.65 * var(--glow-strength)));
+  }
+
+  /* دائرة حرف الخيار (Badge) */
+  .exam-letter {
+    @apply w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full grid place-items-center
+           text-sm font-extrabold bg-zinc-800/80 border border-zinc-600 text-zinc-400;
+    transition:
+      background-color 240ms ease,
+      border-color 240ms ease,
+      color 240ms ease,
+      box-shadow 240ms ease;
+  }
+  .exam-option-selected .exam-letter {
+    @apply bg-accent border-accent;
+    /* لوناً فقط — لا نستخدم text-base حتى لا يتغيّر حجم الخط عند الاختيار */
+    color: rgb(var(--c-on-accent));
+    box-shadow: 0 0 0 4px rgb(var(--c-accent) / 0.16);
+  }
+
+  /* حلقة المؤقّت: تناقص سلس مستمر بدل قفزة حادّة كل ثانية */
+  .exam-ring-progress {
+    transition:
+      stroke-dashoffset 1000ms linear,
+      stroke 600ms ease;
+  }
+
+  /* حالة Focus عامة واضحة لكل الأزرار (إمكانية وصول) */
+  .btn:focus-visible,
+  .field:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(var(--c-accent) / 0.45);
+  }
+}
+
+/* ==========================================================================
+   احترام إعداد «تقليل الحركة» بمتصفح الطالب.
+   يُستثنى مؤشّر التحميل (animate-spin) حتى يبقى معبّراً عن حالة الانتظار.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *:not(.animate-spin),
+  *:not(.animate-spin)::before,
+  *:not(.animate-spin)::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

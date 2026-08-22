@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+serviceAccountKey.json
+*.log
+__pycache__/
+.venv/
+venv/
+firebase-debug.log
+firestore-debug.log
+.firebase/

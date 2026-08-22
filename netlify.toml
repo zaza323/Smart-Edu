@@ -1,0 +1,32 @@
+# ============================================================================
+#  إعدادات نشر Netlify — واجهة React فقط.
+#  الخادم (Cloud Functions) و قاعدة البيانات و التخزين تبقى على Firebase؛
+#  Netlify يستضيف الملفات الثابتة الناتجة عن البناء لا أكثر.
+# ============================================================================
+
+[build]
+  base = "web-app"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# تطبيق صفحة واحدة (SPA): كل المسارات تُخدَم من index.html ليتولّى React Router
+# التوجيه. بدون هذا، فتح /app/history مباشرة أو تحديث الصفحة يعطي 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
