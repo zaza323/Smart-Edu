@@ -157,6 +157,55 @@
 }
 
 /* ==========================================================================
+   توكنات الصفحة الرئيسية (Landing) — لا تُستخدم في أي صفحة أخرى.
+   الداكن: أصفر الشعار هو اللون الأساسي على خلفية zinc.
+   الفاتح: أزرق الشعار أساسي، والأصفر الباستيل للشارات واللمسات الثانوية.
+   ========================================================================== */
+:root,
+:root[data-theme='dark'] {
+  --lp-bg: 24 24 27; /* #18181b */
+  --lp-alt: 20 20 22; /* #141416 أقسام متناوبة */
+  --lp-tint: 24 24 27; /* لا صبغة أعلى الواجهة في الداكن */
+  --lp-card: 32 32 36; /* #202024 */
+  --lp-raised: 42 42 46;
+  --lp-line: 52 52 58;
+  --lp-ink: 245 245 240;
+  --lp-muted: 161 161 170; /* #a1a1aa — 6.9:1 على البطاقة */
+  --lp-primary: 240 232 148; /* #f0e894 */
+  --lp-primary-hover: 228 218 122;
+  --lp-on-primary: 24 24 27;
+  --lp-primary-ink: 240 232 148;
+  --lp-glow: 240 232 148;
+  --lp-soft: 240 232 148;
+  --lp-soft-ink: 240 232 148;
+  --lp-soft-a: 0.15;
+  --lp-soft-border-a: 0.3;
+  --lp-shadow: 0 0 0;
+}
+
+:root[data-theme='light'] {
+  --lp-bg: 248 250 252; /* #f8fafc */
+  --lp-alt: 255 255 255;
+  --lp-tint: 232 241 249; /* #e8f1f9 أزرق فاتح جداً أعلى الواجهة */
+  --lp-card: 255 255 255;
+  --lp-raised: 241 245 249;
+  --lp-line: 220 230 241; /* #dce6f1 */
+  --lp-ink: 30 41 59; /* #1e293b */
+  --lp-muted: 100 116 139; /* #64748b — 4.55:1 على #f8fafc */
+  /* أزرق الشعار #7099c2 يعطي 3:1 فقط مع نص أبيض؛ درجته الأغمق هنا 5:1 */
+  --lp-primary: 74 114 159; /* #4a729f */
+  --lp-primary-hover: 61 99 144;
+  --lp-on-primary: 255 255 255;
+  --lp-primary-ink: 47 92 138; /* نصوص بلون الهوية — 6.96:1 على الأبيض */
+  --lp-glow: 112 153 194; /* #7099c2 للتوهّج والحلقات (زخرفة لا نص) */
+  --lp-soft: 232 234 125; /* #e8ea7d أصفر باستيل */
+  --lp-soft-ink: 44 62 80; /* #2c3e50 كحلي فوق الباستيل */
+  --lp-soft-a: 0.5;
+  --lp-soft-border-a: 1;
+  --lp-shadow: 75 101 132;
+}
+
+/* ==========================================================================
    الوضع الفاتح — أصفر الهوية `#f0e894` هو اللون الأساسي في كل شيء.
 
    القيد الفيزيائي الوحيد: أصفر فاتح على خلفية فاتحة لا يُقرأ (1.25:1).
@@ -339,6 +388,79 @@
     -webkit-user-select: none;
     -ms-user-select: none;
     user-select: none;
+  }
+}
+
+/* ==========================================================================
+   مكوّنات الصفحة الرئيسية
+   ========================================================================== */
+@layer components {
+  .lp-focus {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lp-glow
+           focus-visible:ring-offset-2 focus-visible:ring-offset-lp-bg;
+  }
+  .lp-btn {
+    @apply lp-focus inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full
+           font-extrabold transition-all duration-200 select-none active:scale-[0.98];
+  }
+  .lp-btn-primary {
+    @apply lp-btn bg-lp-primary text-lp-onPrimary hover:bg-lp-primaryHover hover:scale-[1.03]
+           shadow-lg shadow-lp-glow/25;
+  }
+  .lp-btn-secondary {
+    @apply lp-btn border border-lp-line bg-lp-card/60 text-lp-ink hover:bg-lp-raised;
+  }
+  .lp-card {
+    @apply bg-lp-card border border-lp-line rounded-2xl;
+    box-shadow: 0 10px 30px -18px rgb(var(--lp-shadow) / 0.25);
+  }
+  .lp-eyebrow {
+    @apply block mb-3 text-xs sm:text-sm font-bold tracking-wide text-lp-primaryInk;
+  }
+  /* شارة صغيرة: أصفر شفاف في الداكن، باستيل صريح بنص كحلي في الفاتح */
+  .lp-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold;
+    background-color: rgb(var(--lp-soft) / var(--lp-soft-a));
+    border-color: rgb(var(--lp-soft) / var(--lp-soft-border-a));
+    color: rgb(var(--lp-soft-ink));
+  }
+
+  /* كلمة العنوان اللامعة — تدرّج متحرّك مقصوص على النص */
+  .lp-shimmer {
+    background-image: linear-gradient(90deg, #f0e894 0%, #ffffff 40%, #f0e894 80%);
+    background-size: 200% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: lp-shimmer 5s ease infinite;
+  }
+  :root[data-theme='light'] .lp-shimmer {
+    background-image: linear-gradient(90deg, #4b6584 0%, #7099c2 40%, #a3aa36 75%, #4b6584 100%);
+  }
+
+  .lp-ring {
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition: stroke-dashoffset 0.8s ease;
+  }
+
+  .lp-tilt {
+    transition:
+      transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.25s ease;
+  }
+  .lp-tilt:hover {
+    box-shadow: 0 25px 50px -12px rgb(var(--lp-glow) / 0.18);
+  }
+}
+
+@keyframes lp-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }
 

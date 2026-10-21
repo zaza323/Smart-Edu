@@ -1,40 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { fetchSubjects } from '../lib/subjects';
-import {
-  BarChart3,
-  BookOpenCheck,
-  CheckCircle2,
-  ShieldCheck,
-  Timer,
-  Zap,
-} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Spinner } from '../components/ui';
-import ThemeToggle from '../components/ThemeToggle';
-
-const features = [
-  {
-    icon: Timer,
-    title: 'محاكاة امتحان الوزارة',
-    text: 'مؤقّت تنازلي وشريط تقدّم يحاكيان جوّ الامتحان الحقيقي لتتعوّد على إدارة وقتك.',
-  },
-  {
-    icon: Zap,
-    title: 'تصحيح فوري',
-    text: 'نتيجتك تظهر لحظة التسليم، مع مراجعة تفصيلية لكل سؤال وإجابته الصحيحة.',
-  },
-  {
-    icon: BarChart3,
-    title: 'تتبّع تطوّرك',
-    text: 'سجل كامل لكل محاولاتك السابقة لتعرف أين تحسّنت وأين تحتاج مراجعة.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'أسئلة موثوقة',
-    text: 'بنك أسئلة منسّق حسب الدروس، مبني على نماذج الوزارة وأسئلة الأجيال السابقة.',
-  },
-];
+import LandingHeader from '../components/landing/LandingHeader';
+import HeroSection from '../components/landing/HeroSection';
+import FeatureStory from '../components/landing/FeatureStory';
+import DemoQuestion from '../components/landing/DemoQuestion';
+import StatsBand from '../components/landing/StatsBand';
+import SubjectsSection from '../components/landing/SubjectsSection';
+import StepsSection from '../components/landing/StepsSection';
+import FaqSection from '../components/landing/FaqSection';
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -54,137 +30,107 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-base">
-      {/* شريط علوي */}
-      <header className="border-b border-zinc-800">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Smart Edu Pro" className="brand-logo h-9" />
-            <span className="font-extrabold text-accent hidden sm:block">Smart Edu Pro</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            {user ? (
-              <Link to="/app" className="btn-primary btn-sm">
-                لوحتي
-              </Link>
-            ) : (
-              <>
-                <Link to="/login" className="btn btn-ghost btn-sm">
-                  دخول
-                </Link>
-                <Link to="/register" className="btn-primary btn-sm">
-                  إنشاء حساب
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-lp-bg text-lp-ink overflow-x-hidden">
+      <LandingHeader user={user} />
+      <main>
+        <HeroSection user={user} />
+        <FeatureStory />
+        <DemoQuestion user={user} />
+        {!loading && <StatsBand subjects={subjects} />}
+        <SubjectsSection subjects={subjects} loading={loading} user={user} />
+        <StepsSection />
+        <FaqSection />
+        <FinalCta user={user} />
+      </main>
+      <LandingFooter />
+      <MobileStickyBar user={user} subjects={subjects} />
+    </div>
+  );
+}
 
-      {/* الواجهة الرئيسية */}
-      <section className="max-w-6xl mx-auto px-4 pt-16 pb-12 text-center">
-        <span className="badge bg-accent/10 text-accent border border-accent/25 mb-6">
-          <BookOpenCheck className="w-4 h-4" />
-          لطلاب التوجيهي
-        </span>
-        <h1 className="text-3xl sm:text-5xl font-extrabold leading-tight">
-          بنك الأسئلة <span className="text-accent">التفاعلي</span>
-        </h1>
-        <p className="text-zinc-400 mt-5 max-w-2xl mx-auto leading-relaxed text-lg">
-          تدرّب على آلاف الأسئلة المرتّبة حسب الدروس، بتجربة اختبار تحاكي امتحان الوزارة تماماً،
-          مع تصحيح فوري وتقرير أداء يوضّح لك نقاط ضعفك بدقة.
+function FinalCta({ user }) {
+  return (
+    <section className="relative overflow-hidden py-24 sm:py-36 text-center border-t border-lp-line bg-gradient-to-b from-lp-alt via-lp-tint/40 to-lp-bg">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center">
+        <div className="w-[500px] h-[500px] max-w-full rounded-full bg-lp-glow/10 blur-[140px]" />
+      </div>
+
+      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <span className="lp-pill !px-4 !py-1.5 sm:!text-sm mb-6">الفرصة بين يديك الآن</span>
+        <h2 className="text-4xl sm:text-6xl font-black leading-tight">ابدأ التدرّب اليوم، وادخل الامتحان بثقة</h2>
+        <p className="mt-6 text-lg sm:text-2xl text-lp-muted max-w-2xl mx-auto leading-relaxed">
+          استعد للامتحان الوزاري ببنك أسئلة تفاعلي مبني على منهاجك الأردني.
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
-          <Link to={user ? '/app' : '/register'} className="btn-primary px-8">
-            ابدأ الآن
+
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <Link
+            to={user ? '/app' : '/register'}
+            className="lp-btn-primary w-full sm:w-auto px-10 py-4 min-h-[52px] text-lg shadow-2xl"
+          >
+            {user ? 'انتقل إلى لوحتي' : 'أنشئ حسابك وابدأ'}
+            <ArrowLeft className="w-5 h-5" />
           </Link>
-          <a href="#subjects" className="btn btn-ghost px-8">
-            المواد والأسعار
-          </a>
+          {!user && (
+            <Link to="/login" className="lp-focus rounded-lg p-3 text-sm font-bold hover:text-lp-primaryInk">
+              لديك حساب بالفعل؟ سجّل الدخول ←
+            </Link>
+          )}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* المزايا */}
-      <section className="max-w-6xl mx-auto px-4 py-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {features.map(({ icon: Icon, title, text }) => (
-          <div key={title} className="card p-6">
-            <div className="w-11 h-11 rounded-xl bg-accent/10 text-accent grid place-items-center mb-4">
-              <Icon className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-lg">{title}</h3>
-            <p className="text-zinc-400 text-sm mt-2 leading-relaxed">{text}</p>
-          </div>
-        ))}
-      </section>
+function LandingFooter() {
+  return (
+    // الحشوة السفلية على الهاتف تترك مكاناً لشريط «مستعد للبدء؟» الثابت
+    <footer className="py-10 pb-28 sm:pb-10 border-t border-lp-line bg-lp-alt text-xs text-lp-muted">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="" className="brand-logo h-7" />
+          <span className="font-bold text-lp-ink">Smart Edu Pro</span>
+          <span className="hidden sm:inline">— بنك الأسئلة التفاعلي لطلاب التوجيهي</span>
+        </div>
+        <div>Smart Edu Pro &copy; {new Date().getFullYear()} — جميع الحقوق محفوظة</div>
+      </div>
+    </footer>
+  );
+}
 
-      {/* المواد */}
-      <section id="subjects" className="max-w-6xl mx-auto px-4 py-12">
-        <h2 className="text-2xl font-extrabold text-center mb-8">المواد المتاحة</h2>
+/** شريط سفلي على الهاتف يظهر بعد تجاوز الواجهة الأولى. */
+function MobileStickyBar({ user, subjects }) {
+  const [shown, setShown] = useState(false);
 
-        {loading ? (
-          <div className="flex justify-center py-10">
-            <Spinner className="w-8 h-8" />
-          </div>
-        ) : subjects.length === 0 ? (
-          <p className="text-center text-zinc-500">
-            سيتم إضافة المواد قريباً — تابعنا لمعرفة موعد الإطلاق.
-          </p>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {subjects.map((s) => (
-              <div key={s.id} className="card p-6 flex flex-col">
-                <h3 className="font-bold text-lg text-accent">{s.name}</h3>
-                <p className="text-zinc-500 text-sm mt-1">
-                  {[s.grade, s.semester].filter(Boolean).join(' — ')}
-                </p>
-                {s.description && (
-                  <p className="text-zinc-400 text-sm mt-3 leading-relaxed">{s.description}</p>
-                )}
-                <div className="mt-auto pt-5 flex items-end justify-between">
-                  <div>
-                    <span className="text-3xl font-extrabold text-zinc-50">{s.price ?? '—'}</span>
-                    <span className="text-zinc-500 text-sm mr-1">دينار</span>
-                  </div>
-                  <Link to={user ? `/app/subscribe/${s.id}` : '/register'} className="btn-primary btn-sm">
-                    اشترك
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
+  useEffect(() => {
+    const onScroll = () => setShown(window.scrollY > 500);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const prices = subjects.map((s) => Number(s.price)).filter((p) => Number.isFinite(p) && p > 0);
+  const minPrice = prices.length ? Math.min(...prices) : null;
+
+  return (
+    <div
+      className={`sm:hidden fixed bottom-0 inset-x-0 z-40 p-3 flex items-center justify-between gap-3 bg-lp-bg/95 backdrop-blur-lg border-t border-lp-line shadow-lg transition-transform duration-300 ${
+        shown ? 'translate-y-0' : 'translate-y-full'
+      }`}
+      aria-hidden={!shown}
+    >
+      <div>
+        <span className="block text-xs font-bold">{user ? 'أكمل تدريبك' : 'مستعد للبدء؟'}</span>
+        {minPrice !== null && (
+          <span className="text-[11px] text-lp-primaryInk">الاشتراك يبدأ من {minPrice} دينار</span>
         )}
-      </section>
-
-      {/* كيف يعمل */}
-      <section className="max-w-3xl mx-auto px-4 py-12">
-        <h2 className="text-2xl font-extrabold text-center mb-8">كيف تحصل على اشتراكك؟</h2>
-        <ol className="space-y-4">
-          {[
-            'أنشئ حسابك مجاناً بالاسم ورقم الهاتف والبريد الإلكتروني.',
-            'اختر المادة التي تريدها وشاهد بيانات التحويل والمبلغ المطلوب.',
-            'حوّل المبلغ، ثم ارفع صورة إثبات الدفع من داخل حسابك.',
-            'بعد موافقة الإدارة يُفعَّل اشتراكك وتبدأ الحل مباشرة.',
-          ].map((step, i) => (
-            <li key={i} className="card p-4 flex items-start gap-4">
-              <span className="w-8 h-8 shrink-0 rounded-lg bg-accent on-accent font-extrabold grid place-items-center">
-                {i + 1}
-              </span>
-              <p className="text-zinc-300 leading-relaxed pt-1">{step}</p>
-            </li>
-          ))}
-        </ol>
-        <div className="flex justify-center mt-8">
-          <Link to={user ? '/app' : '/register'} className="btn-primary px-8">
-            <CheckCircle2 className="w-5 h-5" />
-            إنشاء حساب الآن
-          </Link>
-        </div>
-      </section>
-
-      <footer className="border-t border-zinc-800 py-6 text-center text-sm text-zinc-600">
-        Smart Edu Pro &copy; {new Date().getFullYear()} — جميع الحقوق محفوظة
-      </footer>
+      </div>
+      <Link
+        to={user ? '/app' : '/register'}
+        tabIndex={shown ? 0 : -1}
+        className="lp-btn-primary px-5 py-2.5 text-xs"
+      >
+        {user ? 'لوحتي' : 'أنشئ حسابك مجاناً'}
+      </Link>
     </div>
   );
 }

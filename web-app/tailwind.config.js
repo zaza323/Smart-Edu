@@ -29,6 +29,26 @@ export default {
         ink: withVar('--c-ink'),
         inkMuted: withVar('--c-ink-muted'),
 
+        // ---- الصفحة الرئيسية فقط: أصفر أساسي في الداكن، أزرق الشعار في الفاتح ----
+        lp: {
+          bg: withVar('--lp-bg'),
+          alt: withVar('--lp-alt'),
+          tint: withVar('--lp-tint'),
+          card: withVar('--lp-card'),
+          raised: withVar('--lp-raised'),
+          line: withVar('--lp-line'),
+          ink: withVar('--lp-ink'),
+          muted: withVar('--lp-muted'),
+          primary: withVar('--lp-primary'),
+          primaryHover: withVar('--lp-primary-hover'),
+          onPrimary: withVar('--lp-on-primary'),
+          primaryInk: withVar('--lp-primary-ink'),
+          glow: withVar('--lp-glow'),
+          soft: withVar('--lp-soft'),
+          softInk: withVar('--lp-soft-ink'),
+          shadow: withVar('--lp-shadow'),
+        },
+
         /**
          * تدرّج zinc مُعاد توجيهه لمتغيّرات أيضاً.
          * الكود القائم يستخدمه في ~215 موضعاً (نصوص ثانوية، حدود، خلفيات).
@@ -87,11 +107,27 @@ export default {
           '0%,100%': { transform: 'scale(1)', opacity: '1' },
           '50%': { transform: 'scale(1.04)', opacity: '0.88' },
         },
+        // حركات الصفحة الرئيسية: بطاقات عائمة حول المعاينة، وتوهّج خلفي يتنفّس
+        float: {
+          '0%,100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        floatSlow: {
+          '0%,100%': { transform: 'translateY(0) rotate(0deg)' },
+          '50%': { transform: 'translateY(-14px) rotate(1.5deg)' },
+        },
+        pulseGlow: {
+          '0%,100%': { opacity: '0.5', transform: 'translate(-50%, -50%) scale(1)' },
+          '50%': { opacity: '0.85', transform: 'translate(-50%, -50%) scale(1.08)' },
+        },
       },
       animation: {
         fadeIn: 'fadeIn .35s ease-out both',
         pulseSoft: 'pulseSoft 1.4s ease-in-out infinite',
         ringPulse: 'ringPulse 2.6s ease-in-out infinite',
+        float: 'float 4s ease-in-out infinite',
+        floatSlow: 'floatSlow 6s ease-in-out infinite',
+        pulseGlow: 'pulseGlow 5s ease-in-out infinite',
       },
     },
   },
