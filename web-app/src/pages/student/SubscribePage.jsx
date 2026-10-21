@@ -12,7 +12,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { ArrowRight, Copy, ImageUp, ShieldCheck, UploadCloud } from 'lucide-react';
+import { ArrowRight, Copy, ImageUp, Package, ShieldCheck, UploadCloud } from 'lucide-react';
 import { db, storage } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { Alert, Spinner, StatusBadge, formatDate } from '../../components/ui';
@@ -20,11 +20,20 @@ import { Alert, Spinner, StatusBadge, formatDate } from '../../components/ui';
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
+/**
+ * صفحة الاشتراك — لمادة واحدة (`/app/subscribe/:subjectId`) أو لباقة
+ * (`/app/subscribe/bundle/:bundleId`). في الباقة يُرسَل طلب دفع واحد، وعند قبوله
+ * تُفعَّل كل موادها معاً من Cloud Function.
+ */
 export default function SubscribePage() {
-  const { subjectId } = useParams();
+  const { subjectId, bundleId } = useParams();
+  const isBundle = Boolean(bundleId);
+  const targetId = bundleId || subjectId;
+  const noun = isBundle ? 'الباقة' : 'المادة';
   const { user, subscriptionOf } = useAuth();
   const fileInput = useRef(null);
 
+  // المادة أو الباقة المعروضة: { name, price, details, items? (مواد الباقة), fullPrice? }
   const [subject, setSubject] = useState(null);
   const [payInfo, setPayInfo] = useState(null);
   const [requests, setRequests] = useState([]);
@@ -36,24 +45,56 @@ export default function SubscribePage() {
   const [success, setSuccess] = useState('');
   const [copied, setCopied] = useState('');
 
-  const sub = subscriptionOf(subjectId);
+  // الباقة «مفعّلة» حين تكون كل موادها مفعّلة
+  const sub = isBundle
+    ? {
+        status:
+          subject?.items?.length && subject.items.every((s) => subscriptionOf(s.id).status === 'active')
+            ? 'active'
+            : 'none',
+      }
+    : subscriptionOf(subjectId);
 
   useEffect(() => {
     (async () => {
       try {
-        const [subjSnap, paySnap] = await Promise.all([
-          getDoc(doc(db, 'subjects', subjectId)),
+        const [targetSnap, paySnap] = await Promise.all([
+          getDoc(doc(db, isBundle ? 'bundles' : 'subjects', targetId)),
           getDoc(doc(db, 'settings', 'payment')),
         ]);
-        setSubject(subjSnap.exists() ? { id: subjSnap.id, ...subjSnap.data() } : null);
         setPayInfo(paySnap.exists() ? paySnap.data() : null);
+
+        if (!targetSnap.exists()) {
+          setSubject(null);
+        } else if (isBundle) {
+          const bundle = targetSnap.data();
+          const itemSnaps = await Promise.all(
+            (bundle.subjectIds || []).map((id) => getDoc(doc(db, 'subjects', id)))
+          );
+          const items = itemSnaps.filter((d) => d.exists()).map((d) => ({ id: d.id, ...d.data() }));
+          setSubject({
+            id: targetSnap.id,
+            name: bundle.name,
+            price: bundle.price,
+            details: bundle.description || '',
+            items,
+            fullPrice: items.reduce((sum, s) => sum + (Number(s.price) || 0), 0),
+          });
+        } else {
+          const data = targetSnap.data();
+          setSubject({
+            id: targetSnap.id,
+            ...data,
+            details: [data.grade, data.semester].filter(Boolean).join(' — '),
+          });
+        }
       } catch {
-        setError('تعذّر تحميل بيانات المادة.');
+        setError(`تعذّر تحميل بيانات ${noun}.`);
       } finally {
         setLoading(false);
       }
     })();
-  }, [subjectId]);
+  }, [isBundle, targetId, noun]);
 
   useEffect(() => {
     if (!user) return undefined;
@@ -68,11 +109,11 @@ export default function SubscribePage() {
         setRequests(
           snap.docs
             .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((r) => r.subjectId === subjectId)
+            .filter((r) => (isBundle ? r.bundleId === bundleId : r.subjectId === subjectId && !r.bundleId))
         ),
       () => setRequests([])
     );
-  }, [user, subjectId]);
+  }, [user, isBundle, bundleId, subjectId]);
 
   const hasPending = useMemo(() => requests.some((r) => r.status === 'pending'), [requests]);
 
@@ -109,8 +150,11 @@ export default function SubscribePage() {
 
       await addDoc(collection(db, 'paymentRequests'), {
         uid: user.uid,
-        subjectId,
-        subject: subject?.name || subjectId,
+        // في الباقة يحمل subjectId معرّف الباقة (القواعد تشترط وجوده نصّاً)،
+        // والمواد التي تُفعَّل تُقرأ من مستند الباقة عند القبول لا من هنا
+        subjectId: targetId,
+        ...(isBundle ? { bundleId } : {}),
+        subject: subject?.name || targetId,
         amount: subject?.price ?? null,
         proofImageUrl: url,
         proofPath: path,
@@ -144,7 +188,7 @@ export default function SubscribePage() {
   }
 
   if (!subject) {
-    return <Alert type="error">هذه المادة غير موجودة.</Alert>;
+    return <Alert type="error">هذه {noun} غير موجودة.</Alert>;
   }
 
   return (
@@ -157,26 +201,44 @@ export default function SubscribePage() {
       <div className="card p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-accent">{subject.name}</h1>
-            <p className="text-zinc-500 text-sm mt-1">
-              {[subject.grade, subject.semester].filter(Boolean).join(' — ')}
-            </p>
+            <h1 className="text-2xl font-extrabold text-accent flex items-center gap-2">
+              {isBundle && <Package className="w-6 h-6 shrink-0" />}
+              {subject.name}
+            </h1>
+            {subject.details && <p className="text-zinc-500 text-sm mt-1">{subject.details}</p>}
           </div>
           <StatusBadge status={sub.status} />
         </div>
+
+        {isBundle && subject.items.length > 0 && (
+          <ul className="mt-4 flex flex-wrap gap-2 text-sm">
+            {subject.items.map((s) => (
+              <li key={s.id} className="bg-surface2 rounded-lg px-3 py-1.5">
+                {s.name}
+                {s.semester && <span className="text-zinc-500"> — {s.semester}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+
         {subject.price != null && (
           <p className="mt-4 text-lg">
             قيمة الاشتراك:{' '}
             <span className="font-extrabold text-zinc-50 text-2xl">{subject.price}</span>{' '}
             <span className="text-zinc-400">دينار أردني</span>
+            {isBundle && subject.fullPrice > Number(subject.price) && (
+              <span className="text-zinc-500 text-sm mr-2">
+                بدل <s>{subject.fullPrice}</s> عند الاشتراك بكل مادة منفردة
+              </span>
+            )}
           </p>
         )}
       </div>
 
       {sub.status === 'active' && (
         <Alert type="success">
-          اشتراكك في هذه المادة مفعّل.{' '}
-          <Link to={`/app/exam-setup/${subjectId}`} className="underline font-bold">
+          اشتراكك في هذه {noun} مفعّل.{' '}
+          <Link to={isBundle ? '/app' : `/app/exam-setup/${subjectId}`} className="underline font-bold">
             ابدأ اختباراً الآن
           </Link>
         </Alert>
@@ -239,7 +301,7 @@ export default function SubscribePage() {
           <Alert type="success">{success}</Alert>
           {hasPending && (
             <Alert type="info">
-              لديك طلب قيد المراجعة لهذه المادة. يمكنك رفع إثبات جديد فقط إذا طُلب منك ذلك.
+              لديك طلب قيد المراجعة لهذه {noun}. يمكنك رفع إثبات جديد فقط إذا طُلب منك ذلك.
             </Alert>
           )}
 
@@ -280,7 +342,7 @@ export default function SubscribePage() {
       {/* سجل الطلبات */}
       {requests.length > 0 && (
         <div className="card p-6">
-          <h2 className="font-bold text-lg mb-4">طلباتك لهذه المادة</h2>
+          <h2 className="font-bold text-lg mb-4">طلباتك لهذه {noun}</h2>
           <div className="space-y-3">
             {requests.map((r) => (
               <div key={r.id} className="bg-surface2 rounded-xl px-4 py-3">

@@ -63,6 +63,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------- bundles (باقات: عدة مواد بسعر واحد) ----------
+    // عامة مثل المواد لتظهر بالصفحة الرئيسية. تفعيل الباقة يقرأ موادها من هنا
+    // داخل Cloud Function، فلا يستطيع الطالب تحديد ما يُفعَّل له.
+    match /bundles/{bundleId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ---------- settings (بيانات التحويل البنكي، إعدادات عامة) ----------
     match /settings/{docId} {
       allow read: if isSignedIn();

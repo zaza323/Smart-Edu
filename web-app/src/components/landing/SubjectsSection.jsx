@@ -1,12 +1,36 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Check, Lock, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, Lock, Package, X } from 'lucide-react';
 import { Spinner } from '../ui';
+import { bundleFullPrice, bundleSubjects } from '../../lib/bundles';
 import { SectionHeading, arCount, usePrefersReducedMotion } from './common';
 
 /** المواد والأسعار — تُقرأ مباشرة من Firestore، فأي مادة تُضاف من لوحة الإدارة تظهر هنا تلقائياً. */
-export default function SubjectsSection({ subjects, loading, user }) {
-  const [sheetSubject, setSheetSubject] = useState(null);
+export default function SubjectsSection({ subjects, bundles = [], loading, user }) {
+  // ما يُعرض في نافذة الاشتراك: { kind, name, details, price, fullPrice?, path }
+  const [sheetItem, setSheetItem] = useState(null);
+
+  const bundleCards = bundles
+    .map((b) => ({ ...b, items: bundleSubjects(b, subjects), fullPrice: bundleFullPrice(b, subjects) }))
+    .filter((b) => b.items.length > 1);
+
+  const openSubject = (s) =>
+    setSheetItem({
+      kind: 'subject',
+      name: s.name,
+      details: [s.grade, s.semester].filter(Boolean).join(' — '),
+      price: s.price,
+      path: `/app/subscribe/${s.id}`,
+    });
+  const openBundle = (b) =>
+    setSheetItem({
+      kind: 'bundle',
+      name: b.name,
+      details: b.items.map((s) => s.name).join(' + '),
+      price: b.price,
+      fullPrice: b.fullPrice,
+      path: `/app/subscribe/bundle/${b.id}`,
+    });
 
   return (
     <section id="subjects" className="scroll-mt-20 py-24 sm:py-36 relative bg-lp-bg">
@@ -25,15 +49,20 @@ export default function SubjectsSection({ subjects, loading, user }) {
         ) : subjects.length === 0 ? (
           <p className="text-center text-lp-muted">سيتم إضافة المواد قريباً — تابعنا لمعرفة موعد الإطلاق.</p>
         ) : (
-          <div
-            className={`grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10 mx-auto ${
-              subjects.length >= 3 ? 'lg:grid-cols-3 max-w-7xl' : 'max-w-4xl'
-            }`}
-          >
-            {subjects.map((subject) => (
-              <SubjectCard key={subject.id} subject={subject} onSubscribe={() => setSheetSubject(subject)} />
+          <>
+            {bundleCards.map((b) => (
+              <BundleCard key={b.id} bundle={b} onSubscribe={() => openBundle(b)} />
             ))}
-          </div>
+            <div
+              className={`grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10 mx-auto ${
+                subjects.length >= 3 ? 'lg:grid-cols-3 max-w-7xl' : 'max-w-4xl'
+              }`}
+            >
+              {subjects.map((subject) => (
+                <SubjectCard key={subject.id} subject={subject} onSubscribe={() => openSubject(subject)} />
+              ))}
+            </div>
+          </>
         )}
 
         <p className="mt-12 flex items-center justify-center gap-2 text-center text-xs sm:text-sm text-lp-muted">
@@ -42,9 +71,7 @@ export default function SubjectsSection({ subjects, loading, user }) {
         </p>
       </div>
 
-      {sheetSubject && (
-        <PurchaseSheet subject={sheetSubject} user={user} onClose={() => setSheetSubject(null)} />
-      )}
+      {sheetItem && <PurchaseSheet item={sheetItem} user={user} onClose={() => setSheetItem(null)} />}
     </section>
   );
 }
@@ -133,6 +160,56 @@ function SubjectCard({ subject, onSubscribe }) {
   );
 }
 
+/** بطاقة الباقة: عريضة فوق بطاقات المواد، بسعرها والسعر المشطوب ومقدار التوفير. */
+function BundleCard({ bundle, onSubscribe }) {
+  const saving = bundle.fullPrice - Number(bundle.price);
+  return (
+    <div className="relative max-w-4xl mx-auto mb-10 rounded-3xl p-[1.5px] bg-gradient-to-l from-lp-glow via-lp-soft/70 to-lp-glow/40 shadow-xl shadow-lp-glow/15">
+      <div className="rounded-[calc(1.5rem-1.5px)] bg-lp-card p-6 sm:p-8 flex flex-col md:flex-row md:items-center gap-6">
+        {saving > 0 && (
+          <span className="absolute -top-3 right-8 px-3 py-1 rounded-full bg-lp-primary text-lp-onPrimary text-xs font-extrabold shadow-md">
+            وفّر {arCount(saving, { one: 'ديناراً واحداً', two: 'دينارين', few: 'دنانير', many: 'ديناراً' })}
+          </span>
+        )}
+        <div className="w-14 h-14 shrink-0 rounded-2xl grid place-items-center bg-lp-glow/15 border border-lp-glow/30 text-lp-primaryInk">
+          <Package className="w-7 h-7" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="lp-eyebrow !mb-1">باقة</span>
+          <h3 className="text-2xl sm:text-3xl font-extrabold">{bundle.name}</h3>
+          {bundle.description && (
+            <p className="mt-2 text-sm text-lp-muted leading-relaxed">{bundle.description}</p>
+          )}
+          <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            {bundle.items.map((s) => (
+              <li key={s.id} className="flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-lp-primaryInk" strokeWidth={3} />
+                {s.name}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="flex md:flex-col items-center md:items-end justify-between gap-4 shrink-0">
+          <div className="md:text-left">
+            <span className="flex items-baseline gap-1">
+              <span className="text-4xl font-black tabular-nums">{bundle.price}</span>
+              <span className="text-[1rem] font-bold text-lp-primaryInk">دينار</span>
+            </span>
+            {saving > 0 && (
+              <span className="block text-xs text-lp-muted">
+                بدل <s className="tabular-nums">{bundle.fullPrice}</s> دينار
+              </span>
+            )}
+          </div>
+          <button type="button" onClick={onSubscribe} className="lp-btn-primary px-6 py-3 min-h-[48px] text-sm">
+            اشترك بالباقة
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SHEET_STEPS = [
   'أنشئ حسابك المجاني أو سجّل دخولك.',
   'حوّل المبلغ الموضّح أعلاه إلى بيانات التحويل الظاهرة في صفحة الاشتراك.',
@@ -140,9 +217,10 @@ const SHEET_STEPS = [
 ];
 
 /** نافذة تأكيد الاشتراك: ملخّص المادة والسعر والخطوات، ثم انتقال لصفحة الدفع أو التسجيل. */
-function PurchaseSheet({ subject, user, onClose }) {
+function PurchaseSheet({ item, user, onClose }) {
   const closeRef = useRef(null);
-  const subscribePath = `/app/subscribe/${subject.id}`;
+  const subscribePath = item.path;
+  const isBundle = item.kind === 'bundle';
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -185,18 +263,19 @@ function PurchaseSheet({ subject, user, onClose }) {
 
         <div className="mb-6 p-4 rounded-2xl bg-lp-raised/60 border border-lp-line flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <span className="block text-xs text-lp-muted">المادة المختارة</span>
-            <h4 className="mt-0.5 font-extrabold">{subject.name}</h4>
-            {(subject.grade || subject.semester) && (
-              <span className="block text-xs text-lp-muted mt-0.5">
-                {[subject.grade, subject.semester].filter(Boolean).join(' — ')}
-              </span>
-            )}
+            <span className="block text-xs text-lp-muted">{isBundle ? 'الباقة المختارة' : 'المادة المختارة'}</span>
+            <h4 className="mt-0.5 font-extrabold">{item.name}</h4>
+            {item.details && <span className="block text-xs text-lp-muted mt-0.5">{item.details}</span>}
           </div>
           <div className="shrink-0 text-left">
             <span className="block text-xs text-lp-muted">المبلغ</span>
-            <span className="text-2xl font-black text-lp-primaryInk tabular-nums">{subject.price ?? '—'}</span>{' '}
+            <span className="text-2xl font-black text-lp-primaryInk tabular-nums">{item.price ?? '—'}</span>{' '}
             <span className="text-xs text-lp-primaryInk">دينار</span>
+            {isBundle && item.fullPrice > Number(item.price) && (
+              <span className="block text-[11px] text-lp-muted">
+                بدل <s>{item.fullPrice}</s>
+              </span>
+            )}
           </div>
         </div>
 
@@ -211,7 +290,9 @@ function PurchaseSheet({ subject, user, onClose }) {
             <span className="w-5 h-5 shrink-0 rounded-full grid place-items-center bg-emerald-500/20 text-emerald-300">
               <Check className="w-3 h-3" strokeWidth={3} />
             </span>
-            بعد موافقة الإدارة تُفتح لك أسئلة المادة كاملة.
+            {isBundle
+              ? 'بعد موافقة الإدارة تُفتح لك كل مواد الباقة معاً.'
+              : 'بعد موافقة الإدارة تُفتح لك أسئلة المادة كاملة.'}
           </li>
         </ol>
 

@@ -145,8 +145,11 @@ export default function PaymentsPage() {
 
                 <div className="bg-surface2 rounded-xl px-4 py-3 text-sm space-y-1">
                   <p>
-                    <span className="text-zinc-500">المادة: </span>
+                    <span className="text-zinc-500">{r.bundleId ? 'الباقة: ' : 'المادة: '}</span>
                     <span className="font-bold text-accent">{r.subject}</span>
+                    {r.bundleId && (
+                      <span className="text-xs text-zinc-500"> (القبول يفعّل كل مواد الباقة)</span>
+                    )}
                   </p>
                   <p>
                     <span className="text-zinc-500">المبلغ: </span>

@@ -53,6 +53,7 @@ export default function App() {
       >
         <Route index element={<SubjectsPage />} />
         <Route path="subscribe/:subjectId" element={<SubscribePage />} />
+        <Route path="subscribe/bundle/:bundleId" element={<SubscribePage />} />
         <Route path="exam-setup/:subjectId" element={<ExamSetupPage />} />
         <Route path="result/:attemptId" element={<ResultPage />} />
         <Route path="history" element={<HistoryPage />} />

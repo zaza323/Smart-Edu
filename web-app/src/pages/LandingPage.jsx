@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchSubjects } from '../lib/subjects';
+import { fetchBundles } from '../lib/bundles';
 import { useAuth } from '../context/AuthContext';
 import LandingHeader from '../components/landing/LandingHeader';
 import HeroSection from '../components/landing/HeroSection';
@@ -14,12 +15,18 @@ import FaqSection from '../components/landing/FaqSection';
 export default function LandingPage() {
   const { user } = useAuth();
   const [subjects, setSubjects] = useState([]);
+  const [bundles, setBundles] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        setSubjects(await fetchSubjects({ onlyActive: true }));
+        const [subjectList, bundleList] = await Promise.all([
+          fetchSubjects({ onlyActive: true }),
+          fetchBundles({ onlyActive: true }).catch(() => []),
+        ]);
+        setSubjects(subjectList);
+        setBundles(bundleList);
       } catch {
         setSubjects([]);
       } finally {
@@ -36,12 +43,12 @@ export default function LandingPage() {
         <FeatureStory />
         <DemoQuestion user={user} />
         {!loading && <StatsBand subjects={subjects} />}
-        <SubjectsSection subjects={subjects} loading={loading} user={user} />
+        <SubjectsSection subjects={subjects} bundles={bundles} loading={loading} user={user} />
         <StepsSection />
         <FaqSection />
       </main>
       <LandingFooter />
-      <MobileStickyBar user={user} subjects={subjects} />
+      <MobileStickyBar user={user} prices={[...subjects, ...bundles].map((x) => x.price)} />
     </div>
   );
 }
@@ -63,7 +70,7 @@ function LandingFooter() {
 }
 
 /** شريط سفلي على الهاتف يظهر بعد تجاوز الواجهة الأولى. */
-function MobileStickyBar({ user, subjects }) {
+function MobileStickyBar({ user, prices: allPrices }) {
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
@@ -73,7 +80,7 @@ function MobileStickyBar({ user, subjects }) {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const prices = subjects.map((s) => Number(s.price)).filter((p) => Number.isFinite(p) && p > 0);
+  const prices = allPrices.map(Number).filter((p) => Number.isFinite(p) && p > 0);
   const minPrice = prices.length ? Math.min(...prices) : null;
 
   return (

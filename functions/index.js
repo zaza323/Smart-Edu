@@ -445,22 +445,47 @@ exports.approvePayment = onCall(async (request) => {
     const userSnap = await tx.get(userRef);
     if (!userSnap.exists) throw new HttpsError('not-found', 'حساب الطالب غير موجود.');
 
+    // المواد التي يفعّلها الطلب: مادة واحدة، أو كل مواد الباقة كما هي محفوظة
+    // في مستند الباقة لحظة القبول (لا كما أرسلها الطالب).
+    let grants;
+    if (pr.bundleId) {
+      const bundleSnap = await tx.get(db.doc(`bundles/${pr.bundleId}`));
+      if (!bundleSnap.exists) throw new HttpsError('not-found', 'الباقة غير موجودة.');
+      const subjectIds = (bundleSnap.data().subjectIds || []).filter(
+        (id) => typeof id === 'string' && id
+      );
+      if (subjectIds.length === 0) {
+        throw new HttpsError('failed-precondition', 'الباقة لا تحتوي أي مادة.');
+      }
+      const subjectSnaps = await tx.getAll(...subjectIds.map((id) => db.doc(`subjects/${id}`)));
+      grants = subjectSnaps.map((s, i) => ({
+        subjectId: subjectIds[i],
+        subjectName: (s.exists && s.data().name) || subjectIds[i],
+      }));
+    } else {
+      grants = [{ subjectId: pr.subjectId, subjectName: pr.subject || pr.subjectId }];
+    }
+
     const expiresAt =
       durationDays && Number(durationDays) > 0
         ? Timestamp.fromMillis(Date.now() + Number(durationDays) * 86400000)
         : null;
 
-    tx.update(userRef, {
-      [`subscriptions.${pr.subjectId}`]: {
+    const subscriptionUpdates = {};
+    for (const { subjectId, subjectName } of grants) {
+      subscriptionUpdates[`subscriptions.${subjectId}`] = {
         status: 'active',
-        subjectName: pr.subject || pr.subjectId,
+        subjectName,
         activatedAt: Timestamp.now(),
         activatedBy: adminUid,
         expiresAt,
         paymentRequestId: requestId,
+        // مبلغ الطلب كاملاً؛ في الباقة يتكرّر على موادها لكنه يُحسب بالإيراد مرة واحدة
         amount: pr.amount === undefined ? null : pr.amount,
-      },
-    });
+        bundleId: pr.bundleId || null,
+      };
+    }
+    tx.update(userRef, subscriptionUpdates);
 
     tx.update(reqRef, {
       status: 'approved',
@@ -468,7 +493,7 @@ exports.approvePayment = onCall(async (request) => {
       reviewedBy: adminUid,
     });
 
-    return { uid: pr.uid, subjectId: pr.subjectId };
+    return { uid: pr.uid, subjectIds: grants.map((g) => g.subjectId), bundleId: pr.bundleId || null };
   });
 
   logger.info('approvePayment', { adminUid, requestId, ...result });

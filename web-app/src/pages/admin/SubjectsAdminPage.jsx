@@ -26,6 +26,7 @@ import { db } from '../../lib/firebase';
 import { fetchSubjects, persistSubjectOrder } from '../../lib/subjects';
 import { Alert, EmptyState, Spinner } from '../../components/ui';
 import ImportQuestionsDialog from '../../components/ImportQuestionsDialog';
+import BundlesAdminSection from '../../components/BundlesAdminSection';
 
 const EMPTY_SUBJECT = {
   id: '',
@@ -277,6 +278,8 @@ export default function SubjectsAdminPage() {
           }}
         />
       )}
+
+      {!loading && <BundlesAdminSection subjects={subjects} />}
 
       {/* بيانات التحويل */}
       <div className="card p-6 space-y-4">

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchSubjects } from '../../lib/subjects';
-import { BookOpenCheck, CreditCard, PlayCircle, Sparkles } from 'lucide-react';
+import { bundleFullPrice, bundleSubjects, fetchBundles } from '../../lib/bundles';
+import { BookOpenCheck, CreditCard, Package, PlayCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Alert, EmptyState, Spinner, StatusBadge, formatDate } from '../../components/ui';
 import PromoBanner from '../../components/PromoBanner';
@@ -9,13 +10,20 @@ import PromoBanner from '../../components/PromoBanner';
 export default function SubjectsPage() {
   const { profile, subscriptionOf } = useAuth();
   const [subjects, setSubjects] = useState([]);
+  const [bundles, setBundles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
-        setSubjects(await fetchSubjects({ onlyActive: true }));
+        const [subjectList, bundleList] = await Promise.all([
+          fetchSubjects({ onlyActive: true }),
+          // الباقات اختيارية: فشل تحميلها لا يمنع عرض المواد
+          fetchBundles({ onlyActive: true }).catch(() => []),
+        ]);
+        setSubjects(subjectList);
+        setBundles(bundleList);
       } catch {
         setError('تعذّر تحميل قائمة المواد. تحقّق من اتصالك بالإنترنت.');
       } finally {
@@ -27,6 +35,11 @@ export default function SubjectsPage() {
   const hasActiveSubscription = Object.values(profile?.subscriptions || {}).some(
     (s) => s.status === 'active'
   );
+
+  // تُعرض الباقة ما دامت فيها مادة غير مفعّلة للطالب
+  const openBundles = bundles
+    .map((b) => ({ ...b, items: bundleSubjects(b, subjects), fullPrice: bundleFullPrice(b, subjects) }))
+    .filter((b) => b.items.length > 0 && b.items.some((s) => subscriptionOf(s.id).status !== 'active'));
 
   if (loading) {
     return (
@@ -48,6 +61,36 @@ export default function SubjectsPage() {
       {hasActiveSubscription && <PromoBanner />}
 
       {error && <Alert type="error">{error}</Alert>}
+
+      {openBundles.map((b) => (
+        <div
+          key={b.id}
+          className="card p-5 border-accent/40 bg-gradient-to-l from-accent/[0.08] to-transparent flex flex-col sm:flex-row sm:items-center gap-4"
+        >
+          <div className="w-12 h-12 shrink-0 rounded-xl bg-accent on-accent grid place-items-center">
+            <Package className="w-6 h-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-bold text-lg text-accent">{b.name}</h3>
+            <p className="text-zinc-400 text-sm mt-0.5">{b.items.map((s) => s.name).join(' + ')}</p>
+          </div>
+          <div className="flex items-center gap-4 shrink-0">
+            <p className="text-left">
+              <span className="text-2xl font-extrabold text-zinc-50">{b.price}</span>{' '}
+              <span className="text-zinc-400 text-sm">دينار</span>
+              {b.fullPrice > Number(b.price) && (
+                <span className="block text-xs text-zinc-500">
+                  بدل <s>{b.fullPrice}</s>
+                </span>
+              )}
+            </p>
+            <Link to={`/app/subscribe/bundle/${b.id}`} className="btn-primary">
+              <CreditCard className="w-5 h-5" />
+              اشترك بالباقة
+            </Link>
+          </div>
+        </div>
+      ))}
 
       {subjects.length === 0 ? (
         <EmptyState
