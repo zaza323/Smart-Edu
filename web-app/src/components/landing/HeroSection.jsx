@@ -32,7 +32,7 @@ export default function HeroSection({ user }) {
           مبني لطلاب التوجيهي على نمط أسئلة الوزارة
         </div>
 
-        <h1 className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl font-black leading-[1.4] max-w-4xl">
+        <h1 className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl font-black !leading-[1.4] max-w-4xl">
           بنك الأسئلة <span className="lp-shimmer">التفاعلي</span>
         </h1>
 

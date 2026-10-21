@@ -5,8 +5,8 @@ export function SectionHeading({ eyebrow, title, text, className = '' }) {
   return (
     <div className={`text-center max-w-3xl mx-auto ${className}`}>
       {eyebrow && <span className="lp-eyebrow">{eyebrow}</span>}
-      <h2 className="text-3xl sm:text-5xl font-black leading-tight">{title}</h2>
-      {text && <p className="mt-4 text-[1rem] sm:text-lg text-lp-muted leading-relaxed">{text}</p>}
+      <h2 className="text-3xl sm:text-5xl font-black !leading-[1.6]">{title}</h2>
+      {text && <p className="mt-6 sm:mt-8 text-[1rem] sm:text-lg text-lp-muted leading-relaxed">{text}</p>}
     </div>
   );
 }
