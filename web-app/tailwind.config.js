@@ -120,6 +120,19 @@ export default {
           '0%,100%': { opacity: '0.5', transform: 'translate(-50%, -50%) scale(1)' },
           '50%': { opacity: '0.85', transform: 'translate(-50%, -50%) scale(1.08)' },
         },
+        // تبديل أسئلة المعاينة: السؤال التالي يدخل من اليسار (اتجاه القراءة العربي)
+        slideFromLeft: {
+          '0%': { opacity: '0', transform: 'translateX(-28px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        slideFromRight: {
+          '0%': { opacity: '0', transform: 'translateX(28px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        fillBar: {
+          '0%': { width: '0%' },
+          '100%': { width: '100%' },
+        },
       },
       animation: {
         fadeIn: 'fadeIn .35s ease-out both',
@@ -128,6 +141,9 @@ export default {
         float: 'float 4s ease-in-out infinite',
         floatSlow: 'floatSlow 6s ease-in-out infinite',
         pulseGlow: 'pulseGlow 5s ease-in-out infinite',
+        slideFromLeft: 'slideFromLeft .45s cubic-bezier(0.22, 1, 0.36, 1) both',
+        slideFromRight: 'slideFromRight .45s cubic-bezier(0.22, 1, 0.36, 1) both',
+        fillBar: 'fillBar 6s linear both',
       },
     },
   },
