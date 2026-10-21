@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import { fetchSubjects } from '../lib/subjects';
 import { useAuth } from '../context/AuthContext';
 import LandingHeader from '../components/landing/LandingHeader';
@@ -40,44 +39,10 @@ export default function LandingPage() {
         <SubjectsSection subjects={subjects} loading={loading} user={user} />
         <StepsSection />
         <FaqSection />
-        <FinalCta user={user} />
       </main>
       <LandingFooter />
       <MobileStickyBar user={user} subjects={subjects} />
     </div>
-  );
-}
-
-function FinalCta({ user }) {
-  return (
-    <section className="relative overflow-hidden py-24 sm:py-36 text-center border-t border-lp-line bg-gradient-to-b from-lp-alt via-lp-tint/40 to-lp-bg">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid place-items-center">
-        <div className="w-[500px] h-[500px] max-w-full rounded-full bg-lp-glow/10 blur-[140px]" />
-      </div>
-
-      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <span className="lp-pill !px-4 !py-1.5 sm:!text-sm mb-6">الفرصة بين يديك الآن</span>
-        <h2 className="text-4xl sm:text-6xl font-black leading-[1.35]">ابدأ التدرّب اليوم، وادخل الامتحان بثقة</h2>
-        <p className="mt-8 text-lg sm:text-2xl text-lp-muted max-w-2xl mx-auto leading-relaxed">
-          استعد للامتحان الوزاري ببنك أسئلة تفاعلي مبني على منهاجك الأردني.
-        </p>
-
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link
-            to={user ? '/app' : '/register'}
-            className="lp-btn-primary w-full sm:w-auto px-10 py-4 min-h-[52px] text-lg shadow-2xl"
-          >
-            {user ? 'انتقل إلى لوحتي' : 'أنشئ حسابك وابدأ'}
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          {!user && (
-            <Link to="/login" className="lp-focus rounded-lg p-3 text-sm font-bold hover:text-lp-primaryInk">
-              لديك حساب بالفعل؟ سجّل الدخول ←
-            </Link>
-          )}
-        </div>
-      </div>
-    </section>
   );
 }
 
