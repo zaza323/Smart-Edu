@@ -72,7 +72,7 @@ export default function HeroSection({ user }) {
 /** معاينة شاشة الاختبار داخل إطار متصفح — زخرفة بصرية لا تفاعل فيها. */
 function ExamMockup() {
   return (
-    <div aria-hidden="true" className="relative mt-14 sm:mt-20 w-full max-w-5xl px-4 sm:px-6 select-none">
+    <div aria-hidden="true" className="relative mt-14 sm:mt-20 md:mt-56 w-full max-w-5xl px-4 sm:px-6 select-none">
       {/* بطاقة عائمة: المؤقّت */}
       <div className="absolute -top-6 right-8 sm:right-16 z-20 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-lp-card/95 backdrop-blur-md border border-lp-glow/40 shadow-xl animate-floatSlow">
         <span className="relative flex w-3 h-3">
@@ -96,14 +96,28 @@ function ExamMockup() {
         </span>
       </div>
 
-      {/* بطاقة عائمة: النتيجة */}
-      <div className="hidden md:flex absolute top-1/3 -right-4 z-20 items-center gap-3 px-4 py-3 rounded-2xl bg-lp-card/95 backdrop-blur-md border border-lp-line shadow-xl animate-floatSlow">
-        <span className="w-10 h-10 rounded-full border-2 border-lp-glow grid place-items-center text-xs font-bold text-lp-primaryInk">
-          87%
+      {/* بطاقة عائمة: النتيجة — فوق الإطار لا فوق محتواه، وتلامس حافته فقط */}
+      <div className="hidden md:flex absolute left-10 bottom-[calc(100%-0.75rem)] z-20 items-center gap-6 px-8 py-6 rounded-3xl bg-lp-card/95 backdrop-blur-md border border-lp-line shadow-2xl animate-floatSlow">
+        <span className="relative w-28 h-28 shrink-0 grid place-items-center">
+          <svg className="absolute inset-0 w-28 h-28" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15.9155" fill="none" strokeWidth="2.5" className="stroke-lp-raised" />
+            <circle
+              cx="18"
+              cy="18"
+              r="15.9155"
+              fill="none"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeDasharray="100 100"
+              strokeDashoffset="13"
+              className="lp-ring stroke-lp-glow"
+            />
+          </svg>
+          <span className="relative text-3xl font-black text-lp-primaryInk tabular-nums">87%</span>
         </span>
         <span className="text-right">
-          <span className="block text-xs font-bold">نتيجتك</span>
-          <span className="block text-[10px] text-lp-muted">تقرير مفصّل لكل اختبار</span>
+          <span className="block text-3xl font-black">نتيجتك</span>
+          <span className="block mt-1 text-lg text-lp-muted">تقرير مفصّل لكل اختبار</span>
         </span>
       </div>
 
