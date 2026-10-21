@@ -32,11 +32,11 @@ export default function HeroSection({ user }) {
           مبني لطلاب التوجيهي على نمط أسئلة الوزارة
         </div>
 
-        <h1 className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl font-black leading-[1.2] max-w-4xl">
+        <h1 className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl font-black leading-[1.4] max-w-4xl">
           بنك الأسئلة <span className="lp-shimmer">التفاعلي</span>
         </h1>
 
-        <p className="mt-6 text-lg sm:text-2xl text-lp-muted max-w-2xl leading-relaxed">
+        <p className="mt-10 sm:mt-14 text-lg sm:text-2xl text-lp-muted max-w-2xl leading-relaxed">
           تدرّب على أسئلة الوزارة، حاكِ ضغط الامتحان الحقيقي، واكتشف نقاط ضعفك فوراً.
         </p>
 

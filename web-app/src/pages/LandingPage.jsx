@@ -57,8 +57,8 @@ function FinalCta({ user }) {
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <span className="lp-pill !px-4 !py-1.5 sm:!text-sm mb-6">الفرصة بين يديك الآن</span>
-        <h2 className="text-4xl sm:text-6xl font-black leading-tight">ابدأ التدرّب اليوم، وادخل الامتحان بثقة</h2>
-        <p className="mt-6 text-lg sm:text-2xl text-lp-muted max-w-2xl mx-auto leading-relaxed">
+        <h2 className="text-4xl sm:text-6xl font-black leading-[1.35]">ابدأ التدرّب اليوم، وادخل الامتحان بثقة</h2>
+        <p className="mt-8 text-lg sm:text-2xl text-lp-muted max-w-2xl mx-auto leading-relaxed">
           استعد للامتحان الوزاري ببنك أسئلة تفاعلي مبني على منهاجك الأردني.
         </p>
 
