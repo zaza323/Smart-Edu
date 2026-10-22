@@ -183,7 +183,7 @@ export default function LeaderboardPage() {
           title="لم يدخل أحد المنافسة بعد"
           description="كن أول من يتصدّر — ابدأ اختباراً الآن وستظهر هنا فوراً."
           action={
-            <Link to={`/app/exam-setup/${subjectId}`} className="btn-primary">
+            <Link to={`/app?start=${subjectId}`} className="btn-primary">
               ابدأ اختباراً
             </Link>
           }
@@ -211,7 +211,7 @@ export default function LeaderboardPage() {
             <div className="card border-dashed p-5 text-center">
               <p className="text-zinc-400 text-sm">
                 لم تدخل المنافسة في هذه المادة بعد.{' '}
-                <Link to={`/app/exam-setup/${subjectId}`} className="text-accent font-bold underline">
+                <Link to={`/app?start=${subjectId}`} className="text-accent font-bold underline">
                   ابدأ اختباراً
                 </Link>{' '}
                 ليظهر اسمك هنا.

@@ -62,17 +62,17 @@ export default function Layout({ variant = 'student' }) {
 
           {/* min-w-0 + overflow-x-auto: لو ضاقت المساحة ينزلق الشريط أفقياً
               بدل أن تُضغط العناصر ويلتفّ نصّها على سطرين */}
-          <nav className="hidden md:flex items-center gap-1 min-w-0 overflow-x-auto nav-scroll">
+          <nav className="hidden md:flex items-center gap-1 min-w-0 overflow-x-auto nav-scroll rounded-full border border-zinc-800 bg-surface/90 p-1">
             {links.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-sm font-semibold transition ${
+                  `flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-semibold transition ${
                     isActive
-                      ? 'bg-accent/10 text-accent'
-                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                      ? 'bg-brandFill text-white shadow-sm'
+                      : 'text-zinc-400 hover:text-zinc-100'
                   }`
                 }
               >

@@ -238,7 +238,7 @@ export default function SubscribePage() {
       {sub.status === 'active' && (
         <Alert type="success">
           اشتراكك في هذه {noun} مفعّل.{' '}
-          <Link to={isBundle ? '/app' : `/app/exam-setup/${subjectId}`} className="underline font-bold">
+          <Link to={isBundle ? '/app' : `/app?start=${subjectId}`} className="underline font-bold">
             ابدأ اختباراً الآن
           </Link>
         </Alert>

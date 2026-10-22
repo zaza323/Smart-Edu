@@ -24,6 +24,8 @@ export default {
         // أزرق الشعار — اللون الأساسي الثاني في الهوية
         brand: withVar('--c-brand'),
         brandInk: withVar('--c-brand-ink'),
+        brandFill: withVar('--c-brand-fill'),
+        brandFillHover: withVar('--c-brand-fill-hover'),
         warn: withVar('--c-warn'),
         critical: withVar('--c-critical'),
         ink: withVar('--c-ink'),

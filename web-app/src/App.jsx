@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import { RequireAdmin, RequireAuth } from './components/ProtectedRoute';
 
@@ -9,7 +9,6 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 
 import SubjectsPage from './pages/student/SubjectsPage';
 import SubscribePage from './pages/student/SubscribePage';
-import ExamSetupPage from './pages/student/ExamSetupPage';
 import ExamPage from './pages/student/ExamPage';
 import ResultPage from './pages/student/ResultPage';
 import HistoryPage from './pages/student/HistoryPage';
@@ -22,6 +21,12 @@ import StudentsPage from './pages/admin/StudentsPage';
 import QuestionsPage from './pages/admin/QuestionsPage';
 import SubjectsAdminPage from './pages/admin/SubjectsAdminPage';
 import StatsPage from './pages/admin/StatsPage';
+
+/** إعداد الاختبار صار لوحة داخل صفحة المواد — الروابط القديمة تفتحها على نفس المادة. */
+function ExamSetupRedirect() {
+  const { subjectId } = useParams();
+  return <Navigate to={`/app?start=${encodeURIComponent(subjectId)}`} replace />;
+}
 
 export default function App() {
   return (
@@ -54,7 +59,7 @@ export default function App() {
         <Route index element={<SubjectsPage />} />
         <Route path="subscribe/:subjectId" element={<SubscribePage />} />
         <Route path="subscribe/bundle/:bundleId" element={<SubscribePage />} />
-        <Route path="exam-setup/:subjectId" element={<ExamSetupPage />} />
+        <Route path="exam-setup/:subjectId" element={<ExamSetupRedirect />} />
         <Route path="result/:attemptId" element={<ResultPage />} />
         <Route path="history" element={<HistoryPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />

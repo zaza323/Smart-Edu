@@ -4,6 +4,7 @@
  * ----------------------------------------------------------------------------
  *  كل ما يمكن للطالب التلاعب به من المتصفح يُنفَّذ هنا بدلاً من ذلك:
  *   - startExam        : يتحقق من الاشتراك ثم يعيد الأسئلة *بدون* الإجابة الصحيحة
+ *   - checkAnswer      : وضع «الشرح الفوري»: يثبّت إجابة سؤال واحد ثم يكشف تصحيحه
  *   - submitExam       : يصحّح من طرف الخادم ويحفظ المحاولة ويعيد المراجعة
  *   - approvePayment   : تفعيل اشتراك الطالب بعد مراجعة إثبات الدفع (أدمن)
  *   - rejectPayment    : رفض الطلب مع سبب (أدمن)
@@ -40,6 +41,14 @@ const SUBMIT_GRACE_SECONDS = 90; // سماحية للشبكة عند التسل�
 // حدود الإيقاف المؤقّت (تُفرض خادمياً — العميل يعرضها فقط)
 const MAX_PAUSES = 2;
 const MAX_PAUSE_SECONDS = 5 * 60;
+
+// الاختبار بلا مؤقّت يبقى «جارياً» حتى هذا الحد ثم يُعدّ متروكاً
+// (مطابق لعمر النسخة المحلية في lib/examSession.js)
+const UNTIMED_MAX_SECONDS = 6 * 60 * 60;
+// حد استعلام `in` في Firestore
+const MAX_LESSONS_PER_EXAM = 30;
+// مراجعة الأخطاء: كم محاولة سابقة تُقرأ لاستخراج الأسئلة الخاطئة
+const MISTAKES_SCAN_ATTEMPTS = 100;
 
 // ---------------------------------------------------------------------------
 //  أدوات مساعدة
@@ -97,12 +106,15 @@ async function assertActiveSubscription(uid, subjectId) {
  * سحب عيّنة عشوائية من الأسئلة دون تحميل بنك الأسئلة كاملاً.
  * يعتمد على الحقل `random` (رقم 0..1 يُكتب لكل سؤال عند الاستيراد):
  * نستعلم من نقطة عشوائية للأمام، ثم نلتف للبداية إن لم يكتمل العدد.
+ * `lessonNumbers`: null = كل الدروس، وإلا مصفوفة أرقام دروس (درس واحد أو أكثر).
  */
-async function sampleQuestions({ subjectId, lessonNumber, count }) {
+async function sampleQuestions({ subjectId, lessonNumbers, count }) {
   const base = () => {
     let q = db.collection('questions').where('subjectId', '==', subjectId);
-    if (lessonNumber !== null && lessonNumber !== undefined) {
-      q = q.where('lessonNumber', '==', lessonNumber);
+    if (lessonNumbers && lessonNumbers.length === 1) {
+      q = q.where('lessonNumber', '==', lessonNumbers[0]);
+    } else if (lessonNumbers && lessonNumbers.length > 1) {
+      q = q.where('lessonNumber', 'in', lessonNumbers);
     }
     return q;
   };
@@ -125,15 +137,82 @@ async function sampleQuestions({ subjectId, lessonNumber, count }) {
   return shuffle([...collected.values()]);
 }
 
+/**
+ * أسئلة المادة التي أخطأ فيها الطالب في آخر مرة ظهرت له (أو تركها بلا إجابة).
+ * سؤال أُجيب عنه صحيحاً لاحقاً يخرج من القائمة. تُقرأ من مراجعات المحاولات
+ * المسلَّمة نفسها — لا مخزن إضافي يحتاج مزامنة.
+ */
+async function latestWrongQuestionIds(uid, subjectId) {
+  const snap = await db
+    .collection('attempts')
+    .where('uid', '==', uid)
+    .where('subjectId', '==', subjectId)
+    .where('status', '==', 'submitted')
+    .limit(MISTAKES_SCAN_ATTEMPTS)
+    .get();
+
+  const attempts = snap.docs
+    .map((d) => d.data())
+    .sort((a, b) => (a.submittedAt?.toMillis?.() || 0) - (b.submittedAt?.toMillis?.() || 0));
+
+  const latest = new Map(); // questionId → isCorrect في آخر ظهور
+  for (const a of attempts) {
+    for (const r of a.review || []) latest.set(r.questionId, Boolean(r.isCorrect));
+  }
+  return [...latest.entries()].filter(([, ok]) => !ok).map(([id]) => id);
+}
+
+/** هل انقضى وقت محاولة جارية (مع سماحية الشبكة)؟ */
+function attemptExpired(attempt) {
+  const startedAt = attempt.startedAt ? attempt.startedAt.toMillis() : 0;
+  const limitSeconds =
+    attempt.timed === false ? UNTIMED_MAX_SECONDS : attempt.durationSeconds + SUBMIT_GRACE_SECONDS;
+  return Date.now() > startedAt + limitSeconds * 1000;
+}
+
+/** نسخة السؤال الآمنة للمتصفح — بلا correctAnswerIndex وبلا explanation (قسم 9/3) */
+function safeQuestion(id, q) {
+  return {
+    id,
+    questionNumber: q.questionNumber === undefined ? null : q.questionNumber,
+    questionText: q.questionText,
+    optionsText: q.optionsText,
+    lesson: q.lesson || '',
+    lessonNumber: q.lessonNumber === undefined ? null : q.lessonNumber,
+  };
+}
+
 // ---------------------------------------------------------------------------
 //  1) بدء اختبار
 // ---------------------------------------------------------------------------
 exports.startExam = onCall(async (request) => {
   const uid = requireAuth(request);
-  const { subjectId, lessonNumber = null, count = 20 } = request.data || {};
+  const {
+    subjectId,
+    lessonNumber = null, // صيغة قديمة: درس واحد
+    lessonNumbers: rawLessonNumbers = null,
+    count = 20,
+    mode = 'normal', // 'normal' | 'mistakes'
+    timed = true,
+    instantFeedback = false,
+  } = request.data || {};
 
   if (typeof subjectId !== 'string' || !subjectId) {
     throw new HttpsError('invalid-argument', 'يجب تحديد المادة.');
+  }
+  if (mode !== 'normal' && mode !== 'mistakes') {
+    throw new HttpsError('invalid-argument', 'نوع الاختبار غير معروف.');
+  }
+
+  // توحيد نطاق الدروس: null = كل الدروس
+  let lessonNumbers = null;
+  if (Array.isArray(rawLessonNumbers) && rawLessonNumbers.length > 0) {
+    lessonNumbers = [...new Set(rawLessonNumbers.map(Number).filter(Number.isFinite))];
+    if (lessonNumbers.length === 0 || lessonNumbers.length > MAX_LESSONS_PER_EXAM) {
+      throw new HttpsError('invalid-argument', 'نطاق الدروس غير صحيح.');
+    }
+  } else if (lessonNumber !== null && lessonNumber !== undefined && Number.isFinite(Number(lessonNumber))) {
+    lessonNumbers = [Number(lessonNumber)];
   }
   // count === 'all' → كل الأسئلة المتاحة في النطاق (بحد أقصى MAX_QUESTIONS_PER_EXAM)
   const requested =
@@ -155,9 +234,7 @@ exports.startExam = onCall(async (request) => {
     .get();
   if (!running.empty) {
     const doc = running.docs[0];
-    const startedAt = doc.data().startedAt ? doc.data().startedAt.toMillis() : 0;
-    const deadline = startedAt + doc.data().durationSeconds * 1000 + SUBMIT_GRACE_SECONDS * 1000;
-    if (Date.now() < deadline) {
+    if (!attemptExpired(doc.data())) {
       throw new HttpsError('failed-precondition', 'لديك اختبار جارٍ لم يُسلَّم بعد.', {
         attemptId: doc.id,
       });
@@ -166,7 +243,18 @@ exports.startExam = onCall(async (request) => {
     await doc.ref.update({ status: 'abandoned', closedAt: FieldValue.serverTimestamp() });
   }
 
-  const picked = await sampleQuestions({ subjectId, lessonNumber, count: requested });
+  let picked;
+  if (mode === 'mistakes') {
+    const wrongIds = shuffle(await latestWrongQuestionIds(uid, subjectId)).slice(0, requested);
+    if (wrongIds.length === 0) {
+      throw new HttpsError('not-found', 'لا توجد أخطاء سابقة لمراجعتها في هذه المادة — أحسنت!');
+    }
+    const snaps = await db.getAll(...wrongIds.map((id) => db.doc(`questions/${id}`)));
+    // سؤال حُذف من البنك أو نُقل لمادة أخرى يُستبعد
+    picked = snaps.filter((d) => d.exists && d.data().subjectId === subjectId);
+  } else {
+    picked = await sampleQuestions({ subjectId, lessonNumbers, count: requested });
+  }
   if (picked.length === 0) {
     throw new HttpsError('not-found', 'لا توجد أسئلة متاحة بهذه المواصفات حالياً.');
   }
@@ -178,39 +266,44 @@ exports.startExam = onCall(async (request) => {
       : DEFAULT_MINUTES_PER_QUESTION;
   const durationSeconds = Math.round(picked.length * minutesPerQuestion * 60);
 
-  // الأسئلة كما تُرسَل للمتصفح — بلا correctAnswerIndex وبلا explanation (قسم 9/3)
-  const safeQuestions = picked.map((doc) => {
-    const q = doc.data();
-    return {
-      id: doc.id,
-      questionNumber: q.questionNumber === undefined ? null : q.questionNumber,
-      questionText: q.questionText,
-      optionsText: q.optionsText,
-      lesson: q.lesson || '',
-      lessonNumber: q.lessonNumber === undefined ? null : q.lessonNumber,
-    };
-  });
+  const safeQuestions = picked.map((doc) => safeQuestion(doc.id, doc.data()));
+
+  let lessonLabel;
+  if (mode === 'mistakes') lessonLabel = 'مراجعة الأخطاء';
+  else if (!lessonNumbers) lessonLabel = 'اختبار شامل';
+  else if (lessonNumbers.length === 1) {
+    lessonLabel = picked[0].data().lesson || `الدرس ${lessonNumbers[0]}`;
+  } else {
+    lessonLabel = `الدروس ${[...lessonNumbers].sort((a, b) => a - b).join('، ')}`;
+  }
 
   const attemptRef = db.collection('attempts').doc();
   await attemptRef.set({
     uid,
     subjectId,
     subject: subjectSnap.exists ? subjectSnap.data().name : subjectId,
-    lessonNumber,
-    lessonLabel:
-      lessonNumber === null ? 'اختبار شامل' : picked[0].data().lesson || `الدرس ${lessonNumber}`,
+    mode,
+    // lessonNumber يبقى للتوافق مع المحاولات القديمة وصفحة السجل
+    lessonNumber: lessonNumbers && lessonNumbers.length === 1 ? lessonNumbers[0] : null,
+    lessonNumbers,
+    lessonLabel,
     questionIds: safeQuestions.map((q) => q.id),
     totalQuestions: safeQuestions.length,
     durationSeconds,
+    timed: Boolean(timed),
+    instantFeedback: Boolean(instantFeedback),
     status: 'in_progress',
     startedAt: FieldValue.serverTimestamp(),
   });
 
-  logger.info('startExam', { uid, subjectId, n: safeQuestions.length, attemptId: attemptRef.id });
+  logger.info('startExam', { uid, subjectId, mode, n: safeQuestions.length, attemptId: attemptRef.id });
 
   return {
     attemptId: attemptRef.id,
     durationSeconds,
+    timed: Boolean(timed),
+    instantFeedback: Boolean(instantFeedback),
+    lessonLabel,
     questions: safeQuestions,
   };
 });
@@ -244,19 +337,20 @@ exports.resumeExam = onCall(async (request) => {
   const byId = new Map(docs.filter((d) => d.exists).map((d) => [d.id, d.data()]));
 
   // نفس التعقيم: بلا إجابة صحيحة وبلا شرح
-  const questions = ids
-    .filter((id) => byId.has(id))
-    .map((id) => {
-      const q = byId.get(id);
-      return {
-        id,
-        questionNumber: q.questionNumber === undefined ? null : q.questionNumber,
-        questionText: q.questionText,
-        optionsText: q.optionsText,
-        lesson: q.lesson || '',
-        lessonNumber: q.lessonNumber === undefined ? null : q.lessonNumber,
-      };
-    });
+  const questions = ids.filter((id) => byId.has(id)).map((id) => safeQuestion(id, byId.get(id)));
+
+  // أسئلة «الشرح الفوري» التي كُشف تصحيحها سابقاً تعود مكشوفة كما كانت
+  const checked = {};
+  for (const [qid, selectedIndex] of Object.entries(attempt.checkedAnswers || {})) {
+    const q = byId.get(qid);
+    if (!q) continue;
+    checked[qid] = {
+      selectedIndex,
+      correctAnswerIndex: q.correctAnswerIndex,
+      isCorrect: selectedIndex === q.correctAnswerIndex,
+      explanation: q.explanation || '',
+    };
+  }
 
   const startedMs = attempt.startedAt ? attempt.startedAt.toMillis() : Date.now();
   const elapsed = Math.round((Date.now() - startedMs) / 1000);
@@ -266,11 +360,70 @@ exports.resumeExam = onCall(async (request) => {
     attemptId,
     durationSeconds: attempt.durationSeconds,
     remainingSeconds,
+    elapsedSeconds: elapsed,
+    timed: attempt.timed !== false,
+    instantFeedback: Boolean(attempt.instantFeedback),
     subjectId: attempt.subjectId,
     subject: attempt.subject,
     lessonLabel: attempt.lessonLabel,
     questions,
+    checked,
   };
+});
+
+// ---------------------------------------------------------------------------
+//  1.c) وضع «الشرح الفوري»: تثبيت إجابة سؤال واحد وكشف تصحيحه
+// ---------------------------------------------------------------------------
+// الإجابة تُثبَّت في المحاولة قبل كشف الصحيحة، ولا تُغيَّر بعدها — فمعرفة
+// الإجابة الصحيحة لا تفيد في تعديل ذلك السؤال عند التسليم.
+exports.checkAnswer = onCall(async (request) => {
+  const uid = requireAuth(request);
+  const { attemptId, questionId, selectedIndex } = request.data || {};
+  const idx = Number(selectedIndex);
+
+  if (typeof attemptId !== 'string' || !attemptId || typeof questionId !== 'string' || !questionId) {
+    throw new HttpsError('invalid-argument', 'بيانات ناقصة.');
+  }
+  if (!Number.isInteger(idx) || idx < 0 || idx > 3) {
+    throw new HttpsError('invalid-argument', 'الخيار غير صحيح.');
+  }
+
+  const attemptRef = db.doc(`attempts/${attemptId}`);
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(attemptRef);
+    if (!snap.exists) throw new HttpsError('not-found', 'المحاولة غير موجودة.');
+    const attempt = snap.data();
+    if (attempt.uid !== uid) throw new HttpsError('permission-denied', 'هذه المحاولة ليست لك.');
+    if (!attempt.instantFeedback) {
+      throw new HttpsError('failed-precondition', 'الشرح الفوري غير مفعّل لهذا الاختبار.');
+    }
+    if (attempt.status !== 'in_progress' || attemptExpired(attempt)) {
+      throw new HttpsError('failed-precondition', 'انتهى هذا الاختبار.');
+    }
+    if (!(attempt.questionIds || []).includes(questionId)) {
+      throw new HttpsError('invalid-argument', 'السؤال ليس ضمن هذا الاختبار.');
+    }
+
+    const qSnap = await tx.get(db.doc(`questions/${questionId}`));
+    if (!qSnap.exists) throw new HttpsError('not-found', 'السؤال غير موجود.');
+    const q = qSnap.data();
+
+    // إجابة مثبّتة سابقاً تبقى كما هي (طلب مكرر بعد انقطاع الشبكة مثلاً)
+    const locked = (attempt.checkedAnswers || {})[questionId];
+    const finalIndex = locked === undefined ? idx : locked;
+    if (locked === undefined) {
+      tx.update(attemptRef, { [`checkedAnswers.${questionId}`]: idx });
+    }
+    return {
+      questionId,
+      selectedIndex: finalIndex,
+      correctAnswerIndex: q.correctAnswerIndex,
+      isCorrect: finalIndex === q.correctAnswerIndex,
+      explanation: q.explanation || '',
+    };
+  });
+
+  return result;
 });
 
 // ---------------------------------------------------------------------------
@@ -312,6 +465,10 @@ exports.submitExam = onCall(async (request) => {
     if (!Number.isInteger(idx) || idx < 0 || idx > 3) continue;
     answerMap.set(a.questionId, idx);
   }
+  // إجابات «الشرح الفوري» المثبّتة تتغلّب على ما يرسله المتصفح: كُشف تصحيحها فلا تُبدَّل
+  for (const [qid, idx] of Object.entries(attempt.checkedAnswers || {})) {
+    if (allowed.has(qid)) answerMap.set(qid, idx);
+  }
 
   // جلب الأسئلة الأصلية بإجاباتها الصحيحة (Admin SDK — لا يمر عبر قواعد الأمان)
   const ids = attempt.questionIds || [];
@@ -335,6 +492,7 @@ exports.submitExam = onCall(async (request) => {
       questionText: q ? q.questionText : '(سؤال محذوف)',
       optionsText: q ? q.optionsText : [],
       lesson: q ? q.lesson || '' : '',
+      lessonNumber: q && q.lessonNumber !== undefined ? q.lessonNumber : null,
       selectedIndex,
       correctAnswerIndex,
       isCorrect,
@@ -360,7 +518,10 @@ exports.submitExam = onCall(async (request) => {
 
   await attemptRef.update({
     status: 'submitted',
-    autoSubmitted: Boolean(autoSubmitted) || timeTakenSeconds > attempt.durationSeconds,
+    autoSubmitted:
+      attempt.timed === false
+        ? false
+        : Boolean(autoSubmitted) || timeTakenSeconds > attempt.durationSeconds,
     studentAnswers: [...answerMap.entries()].map(([questionId, selectedIndex]) => ({
       questionId,
       selectedIndex,

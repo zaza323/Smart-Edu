@@ -108,7 +108,7 @@ export default function ResultPage() {
         <p className="text-xs text-zinc-600 mt-2">{formatDate(attempt.submittedAt)}</p>
 
         <div className="flex flex-wrap gap-3 justify-center mt-6">
-          <Link to={`/app/exam-setup/${attempt.subjectId}`} className="btn-primary">
+          <Link to={`/app?start=${attempt.subjectId}`} className="btn-primary">
             <RotateCcw className="w-5 h-5" />
             اختبار جديد
           </Link>

@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Flag,
   Grid3x3,
+  Lightbulb,
   Pause,
   Play,
   Send,
@@ -32,11 +35,16 @@ export default function ExamPage() {
   const { attemptId } = useParams();
   const navigate = useNavigate();
 
-  const [state, setState] = useState(null); // { questions, subject, ... }
+  const [state, setState] = useState(null); // { questions, subject, timed, instantFeedback, ... }
   const [answers, setAnswers] = useState({}); // { [questionId]: index }
+  // وضع «الشرح الفوري»: نتيجة كل سؤال كُشف تصحيحه { [questionId]: { selectedIndex, correctAnswerIndex, isCorrect, explanation } }
+  const [checked, setChecked] = useState({});
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState('');
   const [flagged, setFlagged] = useState([]);
   const [current, setCurrent] = useState(0);
   const [remaining, setRemaining] = useState(0);
+  const [elapsed, setElapsed] = useState(0); // للاختبار بلا مؤقّت
   const [loadError, setLoadError] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -70,7 +78,9 @@ export default function ExamPage() {
         if (cancelled) return;
         setState(cached);
         setAnswers(cached.answers || {});
+        setChecked(cached.checked || {});
         setFlagged(cached.flagged || []);
+        setCurrent(Math.min(cached.current || 0, cached.questions.length - 1));
         setPauseCount(cached.pauseCount || 0);
         setPausedSeconds(cached.pausedSeconds || 0);
         // المدة المتبقية تُحسب من لحظة البدء المخزّنة محلياً، ثم يصححها الخادم عند التسليم
@@ -89,17 +99,26 @@ export default function ExamPage() {
       try {
         const res = await callFn('resumeExam', { attemptId });
         if (cancelled) return;
+        const checkedFromServer = res.checked || {};
         const fresh = {
           questions: res.questions,
           durationSeconds: res.durationSeconds,
+          timed: res.timed !== false,
+          instantFeedback: Boolean(res.instantFeedback),
           subjectId: res.subjectId,
           subject: res.subject,
           lessonLabel: res.lessonLabel,
-          startedAtLocal: Date.now() - (res.durationSeconds - res.remainingSeconds) * 1000,
-          answers: {},
+          startedAtLocal: Date.now() - (res.elapsedSeconds ?? res.durationSeconds - res.remainingSeconds) * 1000,
+          // الإجابات المثبّتة بالشرح الفوري محفوظة بالخادم، فتعود حتى من جهاز آخر
+          answers: Object.fromEntries(
+            Object.entries(checkedFromServer).map(([qid, c]) => [qid, c.selectedIndex])
+          ),
+          checked: checkedFromServer,
           flagged: [],
         };
         setState(fresh);
+        setAnswers(fresh.answers);
+        setChecked(checkedFromServer);
         deadlineRef.current = Date.now() + res.remainingSeconds * 1000;
         setRemaining(res.remainingSeconds);
         saveExamSession(attemptId, fresh);
@@ -120,11 +139,13 @@ export default function ExamPage() {
       ...state,
       startedAtLocal: state.startedAtLocal || Date.now(),
       answers,
+      checked,
       flagged,
+      current, // ليعود الطالب لنفس السؤال، وتعرض اللوحة «كمّل من حيث وقفت»
       pauseCount,
       pausedSeconds,
     });
-  }, [answers, flagged, state, attemptId, pauseCount, pausedSeconds]);
+  }, [answers, checked, flagged, current, state, attemptId, pauseCount, pausedSeconds]);
 
   // ---------------- التسليم ----------------
   const submit = useCallback(
@@ -161,9 +182,21 @@ export default function ExamPage() {
     [attemptId, navigate]
   );
 
+  const timed = state?.timed !== false;
+
+  // ---------------- الوقت المنقضي (اختبار بلا مؤقّت) ----------------
+  useEffect(() => {
+    if (!state || timed) return undefined;
+    const tick = () =>
+      setElapsed(Math.max(0, Math.round((Date.now() - (state.startedAtLocal || Date.now())) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [state, timed]);
+
   // ---------------- المؤقّت التنازلي ----------------
   useEffect(() => {
-    if (!state || paused) return undefined; // أثناء الإيقاف لا يتحرّك العدّاد
+    if (!state || !timed || paused) return undefined; // أثناء الإيقاف لا يتحرّك العدّاد
     const tick = () => {
       const left = Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000));
       setRemaining(left);
@@ -172,7 +205,7 @@ export default function ExamPage() {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [state, submit, paused]);
+  }, [state, timed, submit, paused]);
 
   // ---------------- الإيقاف المؤقّت ----------------
   const pauseLimitReached = pauseCount >= MAX_PAUSES || pausedSeconds >= MAX_PAUSE_SECONDS;
@@ -257,8 +290,34 @@ export default function ExamPage() {
 
   if (!state) return <FullPageLoader text="جارٍ تجهيز أسئلتك..." />;
 
-  function choose(index) {
-    setAnswers((prev) => ({ ...prev, [q.id]: index }));
+  const instant = Boolean(state.instantFeedback);
+  const result = instant ? checked[q.id] : undefined;
+
+  async function choose(index) {
+    if (!instant) {
+      setAnswers((prev) => ({ ...prev, [q.id]: index }));
+      return;
+    }
+    // الشرح الفوري: الخادم يثبّت الإجابة أولاً ثم يكشف تصحيحها — لا تراجع بعدها
+    if (result || checking) return;
+    const questionId = q.id;
+    setChecking(true);
+    setCheckError('');
+    setAnswers((prev) => ({ ...prev, [questionId]: index }));
+    try {
+      const res = await callFn('checkAnswer', { attemptId, questionId, selectedIndex: index });
+      setChecked((prev) => ({ ...prev, [questionId]: res }));
+      setAnswers((prev) => ({ ...prev, [questionId]: res.selectedIndex }));
+    } catch (err) {
+      setAnswers((prev) => {
+        const next = { ...prev };
+        delete next[questionId];
+        return next;
+      });
+      setCheckError(err.message);
+    } finally {
+      setChecking(false);
+    }
   }
 
   function toggleFlag() {
@@ -286,6 +345,7 @@ export default function ExamPage() {
             <div className="flex items-center gap-2 sm:gap-3.5 shrink-0">
               <div className="flex flex-col items-center gap-1.5">
                 <ThemeToggle />
+                {timed && (
                 <button
                   onClick={togglePause}
                   disabled={!paused && pauseLimitReached}
@@ -300,9 +360,22 @@ export default function ExamPage() {
                 >
                   {paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                 </button>
+                )}
               </div>
               <ExamStreakBadge streak={state.streak} />
-              <ExamTimerRing remaining={remaining} totalSeconds={state.durationSeconds} />
+              {timed ? (
+                <ExamTimerRing remaining={remaining} totalSeconds={state.durationSeconds} />
+              ) : (
+                <div className="text-center" title="اختبار بلا مؤقّت — خذ وقتك">
+                  <div className="flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-surface px-3 py-2">
+                    <Clock className="w-4 h-4 text-brandInk" />
+                    <span dir="ltr" className="font-extrabold tabular-nums text-ink">
+                      {formatDuration(elapsed)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-inkMuted mt-1">بلا مؤقّت</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -377,21 +450,66 @@ export default function ExamPage() {
           <div className="space-y-3">
             {q.optionsText.map((opt, i) => {
               const selected = answers[q.id] === i;
+              // بعد كشف التصحيح: الصحيح أخضر، واختيار الطالب الخاطئ أحمر، والباقي باهت
+              let tone = selected ? 'exam-option-selected' : '';
+              if (result) {
+                if (i === result.correctAnswerIndex) tone = '!border-emerald-500 !bg-emerald-500/10 !text-emerald-300';
+                else if (i === result.selectedIndex) tone = '!border-red-500 !bg-red-500/10 !text-red-300';
+                else tone = 'opacity-50';
+              }
               return (
                 <button
                   key={i}
                   onClick={() => choose(i)}
+                  disabled={Boolean(result) || (checking && instant)}
                   aria-pressed={selected}
-                  className={`exam-option ${selected ? 'exam-option-selected' : ''}`}
+                  className={`exam-option ${tone} disabled:cursor-default`}
                 >
                   <span className="exam-letter" aria-hidden="true">
                     {ARABIC_LETTERS[i]}
                   </span>
-                  <span className="leading-relaxed pt-1.5">{opt}</span>
+                  <span className="leading-relaxed pt-1.5 flex-1">{opt}</span>
+                  {result && i === result.correctAnswerIndex && (
+                    <Check className="w-5 h-5 shrink-0 mt-2" strokeWidth={3} />
+                  )}
+                  {result && i === result.selectedIndex && !result.isCorrect && (
+                    <X className="w-5 h-5 shrink-0 mt-2" strokeWidth={3} />
+                  )}
                 </button>
               );
             })}
           </div>
+
+          {instant && checking && !result && (
+            <p className="mt-4 flex items-center gap-2 text-sm text-inkMuted">
+              <Spinner className="w-4 h-4" /> جارٍ التصحيح...
+            </p>
+          )}
+          {instant && checkError && !result && (
+            <div className="mt-4">
+              <Alert type="error">{checkError}</Alert>
+            </div>
+          )}
+          {result && (
+            <div
+              className={`mt-5 rounded-2xl border p-4 animate-fadeIn ${
+                result.isCorrect ? 'border-emerald-500/40 bg-emerald-500/[0.07]' : 'border-red-500/40 bg-red-500/[0.07]'
+              }`}
+            >
+              <p className={`font-bold flex items-center gap-2 ${result.isCorrect ? 'text-emerald-300' : 'text-red-300'}`}>
+                {result.isCorrect ? <Check className="w-5 h-5" strokeWidth={3} /> : <X className="w-5 h-5" strokeWidth={3} />}
+                {result.isCorrect
+                  ? 'إجابة صحيحة!'
+                  : `إجابة خاطئة — الصحيحة: (${ARABIC_LETTERS[result.correctAnswerIndex]})`}
+              </p>
+              {result.explanation && (
+                <p className="mt-2 text-sm text-zinc-300 leading-relaxed flex items-start gap-2">
+                  <Lightbulb className="w-4 h-4 shrink-0 mt-0.5 text-accent" />
+                  {result.explanation}
+                </p>
+              )}
+            </div>
+          )}
         </div>
         )}
 
@@ -459,7 +577,11 @@ export default function ExamPage() {
                     className={`aspect-square rounded-lg font-bold text-sm border transition relative ${
                       i === current
                         ? 'bg-accent on-accent border-accent'
-                        : isAnswered
+                        : checked[item.id]
+                          ? checked[item.id].isCorrect
+                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                            : 'bg-red-500/15 text-red-300 border-red-500/40'
+                          : isAnswered
                           ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
                           : 'bg-surface2 text-zinc-400 border-zinc-700'
                     }`}
