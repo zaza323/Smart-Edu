@@ -15,6 +15,8 @@ import {
   X,
 } from 'lucide-react';
 import { callFn } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
+import { saveQuestion, subscribeSaved, unsaveQuestion } from '../../lib/savedQuestions';
 import {
   clearExamSession,
   loadExamSession,
@@ -42,6 +44,9 @@ export default function ExamPage() {
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState('');
   const [flagged, setFlagged] = useState([]);
+  // «مراجعة لاحقاً» يحفظ السؤال في حساب الطالب أيضاً — يبقى بعد انتهاء الاختبار
+  const { user } = useAuth();
+  const [saved, setSaved] = useState({});
   const [current, setCurrent] = useState(0);
   const [remaining, setRemaining] = useState(0);
   const [elapsed, setElapsed] = useState(0); // للاختبار بلا مؤقّت
@@ -131,6 +136,8 @@ export default function ExamPage() {
       cancelled = true;
     };
   }, [attemptId]);
+
+  useEffect(() => (user ? subscribeSaved(user.uid, setSaved) : undefined), [user]);
 
   // ---------------- الحفظ التدريجي محلياً ----------------
   useEffect(() => {
@@ -320,8 +327,17 @@ export default function ExamPage() {
     }
   }
 
+  const isMarked = (id) => flagged.includes(id) || Boolean(saved[id]);
+
   function toggleFlag() {
-    setFlagged((prev) => (prev.includes(q.id) ? prev.filter((x) => x !== q.id) : [...prev, q.id]));
+    // التحديث المحلي فوري؛ كتابة Firestore تُصفّ تلقائياً إن انقطع الاتصال
+    if (isMarked(q.id)) {
+      setFlagged((prev) => prev.filter((x) => x !== q.id));
+      if (user) unsaveQuestion(user.uid, q.id).catch(() => {});
+    } else {
+      setFlagged((prev) => [...prev, q.id]);
+      if (user) saveQuestion(user.uid, state.subjectId, q).catch(() => {});
+    }
   }
 
   return (
@@ -432,14 +448,16 @@ export default function ExamPage() {
             </span>
             <button
               onClick={toggleFlag}
+              aria-pressed={isMarked(q.id)}
+              title="يُحفظ السؤال في حسابك لتراجعه لاحقاً من لوحتك"
               className={`btn btn-sm ${
-                flagged.includes(q.id)
+                isMarked(q.id)
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   : 'btn-ghost'
               }`}
             >
               <Flag className="w-4 h-4" />
-              {flagged.includes(q.id) ? 'مُعلَّم للمراجعة' : 'مراجعة لاحقاً'}
+              {isMarked(q.id) ? 'محفوظ للمراجعة' : 'مراجعة لاحقاً'}
             </button>
           </div>
 
@@ -566,7 +584,7 @@ export default function ExamPage() {
             <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
               {questions.map((item, i) => {
                 const isAnswered = answers[item.id] !== undefined;
-                const isFlagged = flagged.includes(item.id);
+                const isFlagged = isMarked(item.id);
                 return (
                   <button
                     key={item.id}
@@ -603,7 +621,7 @@ export default function ExamPage() {
                 <span className="w-3 h-3 rounded bg-zinc-700" /> غير مُجاب
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-amber-400" /> مُعلَّم للمراجعة
+                <span className="w-3 h-3 rounded-full bg-amber-400" /> محفوظ للمراجعة
               </span>
             </div>
           </div>

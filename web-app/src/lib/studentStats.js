@@ -89,6 +89,9 @@ export function computeStudentStats(attempts, subjects, now = Date.now()) {
     for (const r of a.review || []) {
       s.latest.set(r.questionId, Boolean(r.isCorrect));
       if (r.isCorrect) s.correctEver.add(r.questionId);
+      // تحليل الدروس على الأسئلة المُجابة فقط: ترك السؤال (إنهاء الاختبار مبكراً
+      // مثلاً) لا يدلّ على ضعف في درسه، وإن احتُسب خطأً في نتيجة الاختبار نفسه
+      if (r.selectedIndex === null || r.selectedIndex === undefined) continue;
       const number = lessonNumberOf(a.subjectId, r);
       const key = number ?? r.lesson ?? '';
       if (key === '') continue;
@@ -141,5 +144,78 @@ export function computeStudentStats(attempts, subjects, now = Date.now()) {
     examsCount: submitted.length,
     subjectStats,
     inProgress,
+  };
+}
+
+// لا يُحكم على اتجاه التحسّن في درس قبل هذا العدد من الإجابات فيه
+const MIN_TREND_ANSWERS = 6;
+
+/**
+ * تحليل أداء مادة واحدة (صفحة «تحليل الأداء»):
+ *  - series: نتيجة كل اختبار مسلَّم بالترتيب الزمني
+ *  - lessons: نسبة الصحيح من الأسئلة المُجابة في كل درس، واتجاهه (النصف الأحدث مقابل الأقدم)
+ */
+export function computeSubjectProgress(attempts, subject) {
+  const lessonList = (subject?.lessons || []).slice().sort((a, b) => a.number - b.number);
+  const numberOf = (r) => r.lessonNumber ?? lessonList.find((x) => x.title === r.lesson)?.number ?? null;
+
+  const submitted = attempts
+    .filter((a) => a.status === 'submitted' && a.subjectId === subject?.id)
+    .sort((a, b) => millis(a.submittedAt) - millis(b.submittedAt));
+
+  const series = submitted.map((a) => ({
+    id: a.id,
+    at: millis(a.submittedAt) || millis(a.startedAt),
+    pct: Math.round(a.percentage || 0),
+    score: a.score || 0,
+    total: a.totalQuestions || 0,
+    label: a.lessonLabel || '',
+  }));
+
+  const correctEver = new Set();
+  const outcomes = new Map(); // رقم الدرس → [صحيح؟ ...] بالترتيب الزمني
+  for (const a of submitted) {
+    for (const r of a.review || []) {
+      if (r.isCorrect) correctEver.add(r.questionId);
+      if (r.selectedIndex === null || r.selectedIndex === undefined) continue; // كما في computeStudentStats
+      const n = numberOf(r);
+      if (n === null) continue;
+      if (!outcomes.has(n)) outcomes.set(n, []);
+      outcomes.get(n).push(Boolean(r.isCorrect));
+    }
+  }
+
+  const share = (list) => (list.length ? list.filter(Boolean).length / list.length : 0);
+  const known = new Set(lessonList.map((l) => l.number));
+  const lessons = [
+    ...lessonList,
+    // دروس ظهرت في المحاولات وحُذفت من مستند المادة لاحقاً
+    ...[...outcomes.keys()].filter((n) => !known.has(n)).map((n) => ({ number: n, title: '' })),
+  ].map((l) => {
+    const list = outcomes.get(l.number) || [];
+    const half = Math.floor(list.length / 2);
+    return {
+      number: l.number,
+      title: l.title || `الدرس ${l.number}`,
+      correct: list.filter(Boolean).length,
+      total: list.length,
+      accuracy: list.length ? Math.round(share(list) * 100) : null,
+      trend:
+        list.length >= MIN_TREND_ANSWERS
+          ? Math.round((share(list.slice(half)) - share(list.slice(0, half))) * 100)
+          : null,
+    };
+  });
+
+  const pcts = series.map((p) => p.pct);
+  const questionCount = Number(subject?.questionCount) || 0;
+  return {
+    series,
+    lessons,
+    exams: series.length,
+    avgPct: pcts.length ? Math.round(pcts.reduce((s, x) => s + x, 0) / pcts.length) : null,
+    bestPct: pcts.length ? Math.max(...pcts) : null,
+    lastPct: pcts.length ? pcts[pcts.length - 1] : null,
+    mastery: questionCount ? Math.min(100, Math.round((correctEver.size / questionCount) * 100)) : 0,
   };
 }

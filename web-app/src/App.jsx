@@ -12,6 +12,7 @@ import SubscribePage from './pages/student/SubscribePage';
 import ExamPage from './pages/student/ExamPage';
 import ResultPage from './pages/student/ResultPage';
 import HistoryPage from './pages/student/HistoryPage';
+import ProgressPage from './pages/student/ProgressPage';
 import LeaderboardPage from './pages/student/LeaderboardPage';
 import AccountPage from './pages/student/AccountPage';
 
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="exam-setup/:subjectId" element={<ExamSetupRedirect />} />
         <Route path="result/:attemptId" element={<ResultPage />} />
         <Route path="history" element={<HistoryPage />} />
+        <Route path="progress" element={<ProgressPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
         <Route path="account" element={<AccountPage />} />
       </Route>

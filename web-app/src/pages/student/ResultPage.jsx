@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
-import { CheckCircle2, Clock, RotateCcw, Trophy, XCircle } from 'lucide-react';
+import { Bookmark, BookmarkCheck, CheckCircle2, Clock, RotateCcw, Trophy, XCircle } from 'lucide-react';
 import { db } from '../../lib/firebase';
+import { useAuth } from '../../context/AuthContext';
+import { saveQuestion, subscribeSaved, unsaveQuestion } from '../../lib/savedQuestions';
 import { Alert, Spinner, formatDate, formatDuration } from '../../components/ui';
 
 const ARABIC_LETTERS = ['أ', 'ب', 'ج', 'د'];
@@ -21,6 +23,18 @@ export default function ResultPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all'); // all | wrong | correct
+  const { user } = useAuth();
+  const [saved, setSaved] = useState({});
+
+  useEffect(() => (user ? subscribeSaved(user.uid, setSaved) : undefined), [user]);
+
+  function toggleSaved(r) {
+    if (!user) return;
+    const action = saved[r.questionId]
+      ? unsaveQuestion(user.uid, r.questionId)
+      : saveQuestion(user.uid, attempt.subjectId, { id: r.questionId, ...r });
+    action.catch(() => {});
+  }
 
   useEffect(() => {
     (async () => {
@@ -144,8 +158,22 @@ export default function ResultPage() {
         {shown.map((r, idx) => (
           <div key={r.questionId} className="card p-5">
             <div className="flex items-start justify-between gap-3 mb-3">
-              <span className="badge bg-zinc-800 text-zinc-400">
-                السؤال {review.indexOf(r) + 1}
+              <span className="flex items-center gap-2">
+                <span className="badge bg-zinc-800 text-zinc-400">السؤال {review.indexOf(r) + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleSaved(r)}
+                  aria-pressed={Boolean(saved[r.questionId])}
+                  title={saved[r.questionId] ? 'إزالة من المحفوظة' : 'احفظه لتراجعه لاحقاً'}
+                  className={`badge border transition ${
+                    saved[r.questionId]
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                      : 'border-zinc-700 text-zinc-400 hover:text-zinc-100'
+                  }`}
+                >
+                  {saved[r.questionId] ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+                  {saved[r.questionId] ? 'محفوظ' : 'احفظ'}
+                </button>
               </span>
               {r.isCorrect ? (
                 <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">

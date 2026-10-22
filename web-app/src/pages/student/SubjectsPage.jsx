@@ -7,6 +7,7 @@ import { fetchSubjects } from '../../lib/subjects';
 import { bundleFullPrice, bundleSubjects, fetchBundles } from '../../lib/bundles';
 import { computeStudentStats } from '../../lib/studentStats';
 import { loadExamSession, saveExamSession } from '../../lib/examSession';
+import { countBySubject, subscribeSaved } from '../../lib/savedQuestions';
 import { useAuth } from '../../context/AuthContext';
 import { Alert, EmptyState, Spinner } from '../../components/ui';
 import GreetingHero from '../../components/dashboard/GreetingHero';
@@ -38,7 +39,8 @@ export default function SubjectsPage() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState('');
   const [resumeId, setResumeId] = useState('');
-  const [mistakesBusy, setMistakesBusy] = useState('');
+  const [reviewBusy, setReviewBusy] = useState({ subjectId: '', mode: '' });
+  const [saved, setSaved] = useState({});
   const customizerRef = useRef(null);
 
   useEffect(() => {
@@ -69,6 +71,9 @@ export default function SubjectsPage() {
     })();
   }, [user]);
 
+  useEffect(() => (user ? subscribeSaved(user.uid, setSaved) : undefined), [user]);
+  const savedCounts = useMemo(() => countBySubject(saved), [saved]);
+
   const stats = useMemo(() => computeStudentStats(attempts, subjects), [attempts, subjects]);
   const statusOf = (id) => subscriptionOf(id).status || 'none';
   const activeSubjects = subjects.filter((s) => statusOf(s.id) === 'active');
@@ -93,7 +98,12 @@ export default function SubjectsPage() {
       activeSubjects.find((s) => s.id === stats.inProgress?.subjectId) ||
       activeSubjects[0];
     if (wanted) {
-      openCustomizer(pick.id, {});
+      // ?lessons=1,3 من صفحة تحليل الأداء: «تدرّب على هذا الدرس»
+      const lessons = (searchParams.get('lessons') || '')
+        .split(',')
+        .map(Number)
+        .filter((n) => Number.isFinite(n) && n > 0);
+      openCustomizer(pick.id, lessons.length ? { mode: 'custom', lessons } : {});
       setSearchParams({}, { replace: true });
     } else if (!setup) {
       setSetup(defaultSetup(pick));
@@ -162,15 +172,21 @@ export default function SubjectsPage() {
     setStarting(false);
   }
 
-  /** «راجع أخطائي»: جلسة بلا مؤقّت مع شرح فوري، من أسئلة أخطأ فيها الطالب آخر مرة. */
-  async function startMistakes(subject) {
-    const count = Math.min(stats.subjectStats[subject.id]?.mistakes || 0, MISTAKES_SESSION_MAX);
-    setMistakesBusy(subject.id);
+  /**
+   * جلسة مراجعة بلا مؤقّت مع شرح فوري:
+   * 'mistakes' = الأسئلة الخاطئة في آخر ظهور لها، 'saved' = الأسئلة المحفوظة.
+   */
+  async function startReview(subject, mode) {
+    const available =
+      mode === 'mistakes' ? stats.subjectStats[subject.id]?.mistakes || 0 : savedCounts[subject.id] || 0;
+    setReviewBusy({ subjectId: subject.id, mode });
     setError('');
-    await launch(subject, { mode: 'mistakes', count, timed: false, instantFeedback: true }, (err) => {
-      setError(err.details?.attemptId ? 'لديك اختبار جارٍ — أكمله أو سلّمه أولاً.' : err.message);
-    });
-    setMistakesBusy('');
+    await launch(
+      subject,
+      { mode, count: Math.min(available, MISTAKES_SESSION_MAX), timed: false, instantFeedback: true },
+      (err) => setError(err.details?.attemptId ? 'لديك اختبار جارٍ — أكمله أو سلّمه أولاً.' : err.message)
+    );
+    setReviewBusy({ subjectId: '', mode: '' });
   }
 
   // سباق الأبطال: مادة المحاولة الجارية، وإلا الأكثر تدريباً، وإلا أول مادة مفعّلة
@@ -294,8 +310,10 @@ export default function SubjectsPage() {
                 stats={stats.subjectStats[s.id]}
                 inProgress={inProgress?.subjectId === s.id ? inProgress : null}
                 onCustomize={(preset) => openCustomizer(s.id, preset)}
-                onMistakes={() => startMistakes(s)}
-                mistakesBusy={mistakesBusy === s.id}
+                savedCount={savedCounts[s.id] || 0}
+                onMistakes={() => startReview(s, 'mistakes')}
+                onSaved={() => startReview(s, 'saved')}
+                busy={reviewBusy.subjectId === s.id ? reviewBusy.mode : ''}
               />
             ))}
           </div>

@@ -57,6 +57,19 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- users/{uid}/saved (أسئلة حفظها الطالب للمراجعة) ----------
+    // نسخة نصية للعرض فقط — بلا الإجابة الصحيحة. جلسة «راجع المحفوظة» تقرأ
+    // المعرّفات من هنا داخل Cloud Function وتجلب الأسئلة الأصلية من البنك.
+    match /users/{uid}/saved/{questionId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+                    && request.resource.data.keys().hasOnly(
+                         ['subjectId', 'questionText', 'lesson', 'lessonNumber', 'savedAt'])
+                    && request.resource.data.subjectId is string
+                    && request.resource.data.questionText is string
+                    && request.resource.data.questionText.size() <= 3000;
+    }
+
     // ---------- subjects (كتالوج المواد والأسعار) ----------
     match /subjects/{subjectId} {
       allow read: if true;          // كتالوج عام: يظهر بصفحة الهبوط قبل التسجيل

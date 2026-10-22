@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   BookOpenCheck,
+  ChartLine,
   ClipboardList,
   Trophy,
   CreditCard,
@@ -21,6 +22,7 @@ import ThemeToggle from './ThemeToggle';
 const studentLinks = [
   { to: '/app', label: 'المواد', icon: BookOpenCheck, end: true },
   { to: '/app/leaderboard', label: 'لوحة الأبطال', icon: Trophy },
+  { to: '/app/progress', label: 'تحليل الأداء', icon: ChartLine },
   { to: '/app/history', label: 'سجل محاولاتي', icon: ClipboardList },
   { to: '/app/account', label: 'حسابي', icon: User },
 ];

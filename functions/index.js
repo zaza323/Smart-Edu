@@ -192,7 +192,7 @@ exports.startExam = onCall(async (request) => {
     lessonNumber = null, // صيغة قديمة: درس واحد
     lessonNumbers: rawLessonNumbers = null,
     count = 20,
-    mode = 'normal', // 'normal' | 'mistakes'
+    mode = 'normal', // 'normal' | 'mistakes' | 'saved'
     timed = true,
     instantFeedback = false,
   } = request.data || {};
@@ -200,7 +200,7 @@ exports.startExam = onCall(async (request) => {
   if (typeof subjectId !== 'string' || !subjectId) {
     throw new HttpsError('invalid-argument', 'يجب تحديد المادة.');
   }
-  if (mode !== 'normal' && mode !== 'mistakes') {
+  if (!['normal', 'mistakes', 'saved'].includes(mode)) {
     throw new HttpsError('invalid-argument', 'نوع الاختبار غير معروف.');
   }
 
@@ -244,12 +244,25 @@ exports.startExam = onCall(async (request) => {
   }
 
   let picked;
-  if (mode === 'mistakes') {
-    const wrongIds = shuffle(await latestWrongQuestionIds(uid, subjectId)).slice(0, requested);
-    if (wrongIds.length === 0) {
-      throw new HttpsError('not-found', 'لا توجد أخطاء سابقة لمراجعتها في هذه المادة — أحسنت!');
+  if (mode === 'mistakes' || mode === 'saved') {
+    let ids;
+    if (mode === 'mistakes') {
+      ids = await latestWrongQuestionIds(uid, subjectId);
+      if (ids.length === 0) {
+        throw new HttpsError('not-found', 'لا توجد أخطاء سابقة لمراجعتها في هذه المادة — أحسنت!');
+      }
+    } else {
+      const savedSnap = await db
+        .collection(`users/${uid}/saved`)
+        .where('subjectId', '==', subjectId)
+        .get();
+      ids = savedSnap.docs.map((d) => d.id);
+      if (ids.length === 0) {
+        throw new HttpsError('not-found', 'لم تحفظ أي سؤال في هذه المادة بعد.');
+      }
     }
-    const snaps = await db.getAll(...wrongIds.map((id) => db.doc(`questions/${id}`)));
+    ids = shuffle(ids).slice(0, requested);
+    const snaps = await db.getAll(...ids.map((id) => db.doc(`questions/${id}`)));
     // سؤال حُذف من البنك أو نُقل لمادة أخرى يُستبعد
     picked = snaps.filter((d) => d.exists && d.data().subjectId === subjectId);
   } else {
@@ -270,6 +283,7 @@ exports.startExam = onCall(async (request) => {
 
   let lessonLabel;
   if (mode === 'mistakes') lessonLabel = 'مراجعة الأخطاء';
+  else if (mode === 'saved') lessonLabel = 'الأسئلة المحفوظة';
   else if (!lessonNumbers) lessonLabel = 'اختبار شامل';
   else if (lessonNumbers.length === 1) {
     lessonLabel = picked[0].data().lesson || `الدرس ${lessonNumbers[0]}`;

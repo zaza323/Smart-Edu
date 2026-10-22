@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Flag, Lock, LockOpen, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowLeft, BookOpen, Bookmark, Flag, Lock, LockOpen, RefreshCw, Sparkles } from 'lucide-react';
 import { Spinner } from '../ui';
 import { arCount } from '../landing/common';
 import { ProgressRing } from './widgets';
@@ -15,7 +15,17 @@ const STATUS = {
  * بطاقة مادة في لوحة الطالب.
  * onCustomize(preset): يفتح لوحة «تخصيص الاختبار» على هذه المادة بإعداد مسبق.
  */
-export default function SubjectCard({ subject, status, stats, inProgress, onCustomize, onMistakes, mistakesBusy }) {
+export default function SubjectCard({
+  subject,
+  status,
+  stats,
+  inProgress,
+  savedCount = 0,
+  onCustomize,
+  onMistakes,
+  onSaved,
+  busy, // 'mistakes' | 'saved' | ''
+}) {
   const active = status === 'active';
   const badge = STATUS[status] || STATUS.none;
   const questionCount = Number(subject.questionCount) || 0;
@@ -124,7 +134,7 @@ export default function SubjectCard({ subject, status, stats, inProgress, onCust
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
-            <div className="flex items-center justify-between gap-2 text-xs px-1">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 text-xs px-1">
               <button
                 type="button"
                 onClick={() => onCustomize({ mode: 'quick' })}
@@ -144,17 +154,39 @@ export default function SubjectCard({ subject, status, stats, inProgress, onCust
               <button
                 type="button"
                 onClick={onMistakes}
-                disabled={!mistakes || mistakesBusy}
+                disabled={!mistakes || Boolean(busy)}
                 title={mistakes ? 'اختبار بلا مؤقّت من أسئلة أخطأت فيها، مع شرح فوري' : 'لا أخطاء سابقة لمراجعتها'}
                 className="flex items-center gap-1 text-red-400 enabled:hover:text-red-300 disabled:text-zinc-600 disabled:cursor-not-allowed"
               >
-                {mistakesBusy ? <Spinner className="w-3.5 h-3.5" /> : 'راجع أخطائي'}
+                {busy === 'mistakes' ? <Spinner className="w-3.5 h-3.5" /> : 'راجع أخطائي'}
                 <span
                   className={`px-1.5 rounded-full text-[10px] font-bold border ${
                     mistakes ? 'bg-red-500/15 text-red-300 border-red-500/30' : 'bg-zinc-800 text-zinc-500 border-zinc-700'
                   }`}
                 >
                   {mistakes}
+                </span>
+              </button>
+              <span className="text-zinc-700">•</span>
+              <button
+                type="button"
+                onClick={onSaved}
+                disabled={!savedCount || Boolean(busy)}
+                title={
+                  savedCount
+                    ? 'اختبار بلا مؤقّت من الأسئلة التي حفظتها، مع شرح فوري'
+                    : 'احفظ أسئلة بزر «مراجعة لاحقاً» أثناء الاختبار أو من صفحة النتيجة'
+                }
+                className="flex items-center gap-1 text-amber-300 enabled:hover:underline disabled:text-zinc-600 disabled:cursor-not-allowed"
+              >
+                {busy === 'saved' ? <Spinner className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
+                المحفوظة
+                <span
+                  className={`px-1.5 rounded-full text-[10px] font-bold border ${
+                    savedCount ? 'bg-amber-500/15 border-amber-500/30' : 'bg-zinc-800 text-zinc-500 border-zinc-700'
+                  }`}
+                >
+                  {savedCount}
                 </span>
               </button>
             </div>

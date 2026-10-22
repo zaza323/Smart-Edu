@@ -26,6 +26,7 @@ export default {
         brandInk: withVar('--c-brand-ink'),
         brandFill: withVar('--c-brand-fill'),
         brandFillHover: withVar('--c-brand-fill-hover'),
+        chart: withVar('--c-chart'),
         warn: withVar('--c-warn'),
         critical: withVar('--c-critical'),
         ink: withVar('--c-ink'),
