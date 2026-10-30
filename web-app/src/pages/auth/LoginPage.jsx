@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { authErrorMessage } from '../../lib/firebase';
+import { loginIdentifierToEmail, normalizeJordanPhone } from '../../lib/phoneLogin';
 import { Alert, Spinner } from '../../components/ui';
 import ThemeToggle from '../../components/ThemeToggle';
 
@@ -24,9 +25,14 @@ export default function LoginPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    const id = form.email.trim();
+    if (!id.includes('@') && !normalizeJordanPhone(id)) {
+      setError('أدخل بريداً إلكترونياً أو رقم هاتف صحيحاً (مثل 0791234567).');
+      return;
+    }
     setBusy(true);
     try {
-      await login(form.email, form.password);
+      await login(loginIdentifierToEmail(id), form.password);
       navigate(location.state?.from || '/app', { replace: true });
     } catch (err) {
       setError(authErrorMessage(err.code));
@@ -54,18 +60,19 @@ export default function LoginPage() {
 
           <div>
             <label className="label" htmlFor="email">
-              البريد الإلكتروني
+              البريد الإلكتروني أو رقم الهاتف
             </label>
             <input
               id="email"
-              type="email"
+              type="text"
+              inputMode="email"
               dir="ltr"
               required
-              autoComplete="email"
+              autoComplete="username"
               className="field text-left"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="student@example.com"
+              placeholder="07XXXXXXXX أو student@example.com"
             />
           </div>
 

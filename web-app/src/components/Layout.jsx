@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
+import { displayLogin } from '../lib/phoneLogin';
 
 const studentLinks = [
   { to: '/app', label: 'المواد', icon: BookOpenCheck, end: true },
@@ -150,7 +151,7 @@ export default function Layout({ variant = 'student' }) {
 
       <footer className="border-t border-zinc-800 py-5 text-center text-xs text-zinc-600">
         <p>
-          {profile?.fullName || user?.email} — Smart Edu Pro &copy; {new Date().getFullYear()}
+          {profile?.fullName || displayLogin(user?.email)} — Smart Edu Pro &copy; {new Date().getFullYear()}
         </p>
       </footer>
     </div>

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { authErrorMessage } from '../../lib/firebase';
 import { Alert, Spinner, StatusBadge, formatDate } from '../../components/ui';
 import { DEFAULT_GRADE, GRADES } from '../../lib/grades';
+import { displayLogin, isPhoneAccountEmail } from '../../lib/phoneLogin';
 
 export default function AccountPage() {
   const { profile, user, updateProfileInfo, changePassword } = useAuth();
@@ -126,8 +127,8 @@ export default function AccountPage() {
         </div>
 
         <div>
-          <span className="label">البريد الإلكتروني</span>
-          <input dir="ltr" className="field text-left opacity-60" value={user?.email || ''} disabled />
+          <span className="label">{isPhoneAccountEmail(user?.email) ? 'رقم الهاتف (للدخول)' : 'البريد الإلكتروني'}</span>
+          <input dir="ltr" className="field text-left opacity-60" value={displayLogin(user?.email || '')} disabled />
         </div>
 
         <button type="submit" disabled={infoBusy} className="btn-primary">

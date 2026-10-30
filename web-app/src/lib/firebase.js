@@ -46,7 +46,7 @@ export function authErrorMessage(code) {
     'auth/user-disabled': 'تم تعطيل هذا الحساب. تواصل مع الإدارة.',
     'auth/user-not-found': 'لا يوجد حساب بهذا البريد الإلكتروني.',
     'auth/wrong-password': 'كلمة المرور غير صحيحة.',
-    'auth/invalid-credential': 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+    'auth/invalid-credential': 'بيانات الدخول أو كلمة المرور غير صحيحة.',
     'auth/email-already-in-use': 'هذا البريد الإلكتروني مُسجَّل مسبقاً.',
     'auth/weak-password': 'كلمة المرور ضعيفة — استخدم 6 أحرف على الأقل.',
     'auth/too-many-requests': 'محاولات كثيرة متتالية. انتظر قليلاً ثم أعد المحاولة.',

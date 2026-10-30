@@ -3,6 +3,7 @@ import { collection, getDocs, limit, orderBy, query, where } from 'firebase/fire
 import { RefreshCw, Search, Settings2, Users } from 'lucide-react';
 import { callFn, db } from '../../lib/firebase';
 import { fetchSubjects } from '../../lib/subjects';
+import { displayLogin } from '../../lib/phoneLogin';
 import { Alert, EmptyState, Spinner, StatusBadge, formatDate } from '../../components/ui';
 
 export default function StudentsPage() {
@@ -139,7 +140,7 @@ export default function StudentsPage() {
                   <td className="px-4 py-3 text-zinc-400" dir="ltr">
                     <div className="text-right">
                       <p>{s.phone}</p>
-                      <p className="text-xs text-zinc-600">{s.email}</p>
+                      <p className="text-xs text-zinc-600">{displayLogin(s.email)}</p>
                     </div>
                   </td>
                   <td className="px-4 py-3">

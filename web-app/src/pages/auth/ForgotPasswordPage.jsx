@@ -65,6 +65,9 @@ export default function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="student@example.com"
             />
+            <p className="text-xs text-zinc-500 mt-2">
+              إذا كنت تدخل برقم الهاتف، تواصل مع الإدارة لإعادة تعيين كلمة المرور.
+            </p>
           </div>
 
           <button type="submit" disabled={busy || sent} className="btn-primary w-full">
