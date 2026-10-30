@@ -240,6 +240,33 @@ async function main() {
     `سلوك غير متوقع: ${blueResult.questions.length} سؤال، ${blueResult.warnings.length} تحذير`
   );
 
+  console.log('\n[11] خيارات داخل جدول 2×2 (الخلايا مرتّبة من اليمين: ب ثم أ)');
+  const optCell = (letter, text, isCorrect) =>
+    `<w:tc>${option(letter, text, isCorrect)}</w:tc>`;
+  const optTable = (cells) =>
+    `<w:tbl><w:tr>${cells[0]}${cells[1]}</w:tr><w:tr>${cells[2]}${cells[3]}</w:tr></w:tbl>`;
+  const tabled = [
+    p('الدرس (1): خيارات في جدول'),
+    p('1- السؤال الأول:'),
+    optTable([optCell('ب', 'الثاني'), optCell('أ', 'الأول'), optCell('د', 'الرابع'), optCell('ج', 'الثالث', true)]),
+    p('2- السؤال الثاني:'),
+    optTable([optCell('ب', 'باء', true), optCell('أ', 'ألف'), optCell('د', 'دال'), optCell('ج', 'جيم')]),
+    `<w:tbl>${tableRow(['3- ليس سؤالاً', 'نص'])}</w:tbl>`,
+  ].join('');
+  const tabledResult = await extractQuestions(await buildDocx(tabled), { subjectId: 's1' });
+  const [t1, t2] = tabledResult.questions;
+  check(
+    tabledResult.questions.length === 2 && tabledResult.warnings.length === 0,
+    'سؤالان بلا تحذيرات، ونص الجدول غير الخياري مُتجاهَل',
+    `النتيجة: ${tabledResult.questions.length} سؤال، تحذيرات: ${tabledResult.warnings.join(' | ')}`
+  );
+  check(
+    t1?.optionsText.join('|') === 'الأول|الثاني|الثالث|الرابع' && t1.correctAnswerIndex === 2,
+    'الخيارات مرتّبة أ→د والإجابة «ج»',
+    `ترتيب/إجابة خاطئة: ${t1?.optionsText} / ${t1?.correctAnswerIndex}`
+  );
+  check(t2?.correctAnswerIndex === 1, 'إجابة السؤال الثاني «ب»', `الإجابة: ${t2?.correctAnswerIndex}`);
+
   console.log('\n' + '='.repeat(56));
   if (failures === 0) console.log('✅ كل الفحوص نجحت.');
   else {

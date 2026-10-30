@@ -171,6 +171,8 @@ async function extractQuestions(buffer, meta) {
     }
 
     const optionMatch = text.match(OPTION_PATTERN);
+    // من الجداول لا نأخذ إلا الخيارات (جدول خيارات 2×2) — لا أسئلة ولا عناوين
+    if (paragraph.inTable && !optionMatch) continue;
     const questionMatch = optionMatch ? null : matchPreservingText(QUESTION_PATTERN, text);
 
     if (questionMatch) {
@@ -192,6 +194,8 @@ async function extractQuestions(buffer, meta) {
 
   const questions = [];
   for (const q of collected) {
+    // خلايا جدول الخيارات في المستندات العربية مرتّبة من اليمين (ب قبل أ في الصف)
+    q.options.sort((a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter));
     const correct = q.options.filter((o) => o.isCorrect);
 
     if (q.options.length !== 4) {

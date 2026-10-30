@@ -6,6 +6,8 @@
  *   - فقرات جسم المستند العليا فقط (w:body > w:p) — دون الفقرات داخل الجداول،
  *     حتى لا تختلط خلايا جدول الإجابات بتسلسل الأسئلة.
  *   - الجداول (w:tbl) على حدة، لقراءة «جدول الإجابات الصحيحة» إن وُجد.
+ *   - فقرات خلايا الجداول أيضاً بموضعها، معلَّمة `inTable` — بعض الملفات تضع
+ *     خيارات كل سؤال في جدول 2×2، والمستخرِج لا يأخذ منها إلا أسطر الخيارات.
  *   - لون الخط لكل run من `w:rPr > w:color/@w:val` — التنسيق المباشر فقط.
  *     اللون الموروث من نمط حرف (rStyle) غير مدعوم؛ لم يظهر في أي ملف حتى الآن،
  *     ولو ظهر فسيُبلَّغ عنه كتحذير «0 إجابات ملوّنة» لا كقبول خاطئ.
@@ -50,9 +52,18 @@ function runColor(run) {
   return val.toUpperCase();
 }
 
+function readParagraph(node, inTable = false) {
+  const runs = [];
+  const runNodes = node.getElementsByTagName('w:r');
+  for (let r = 0; r < runNodes.length; r++) {
+    runs.push({ text: textOf(runNodes[r]), color: runColor(runNodes[r]) });
+  }
+  return inTable ? { text: textOf(node), runs, inTable } : { text: textOf(node), runs };
+}
+
 /**
  * يفكّ ضغط الملف ويعيد بنية مبسّطة:
- *   { paragraphs: [{ text, runs: [{ text, color }] }], tables: [ [ [cellText] ] ] }
+ *   { paragraphs: [{ text, runs: [{ text, color }], inTable? }], tables: [ [ [cellText] ] ] }
  */
 async function readDocx(buffer) {
   const zip = await JSZip.loadAsync(buffer);
@@ -75,17 +86,16 @@ async function readDocx(buffer) {
     if (node.nodeType !== 1) continue;
 
     if (node.nodeName === 'w:p') {
-      const runs = [];
-      const runNodes = node.getElementsByTagName('w:r');
-      for (let r = 0; r < runNodes.length; r++) {
-        runs.push({ text: textOf(runNodes[r]), color: runColor(runNodes[r]) });
-      }
-      paragraphs.push({ text: textOf(node), runs });
+      paragraphs.push(readParagraph(node));
     } else if (node.nodeName === 'w:tbl') {
       const rows = [];
       const rowNodes = directChildren(node, 'w:tr');
       for (const row of rowNodes) {
-        rows.push(directChildren(row, 'w:tc').map((cell) => textOf(cell).trim()));
+        const cells = directChildren(row, 'w:tc');
+        rows.push(cells.map((cell) => textOf(cell).trim()));
+        for (const cell of cells) {
+          for (const p of directChildren(cell, 'w:p')) paragraphs.push(readParagraph(p, true));
+        }
       }
       tables.push(rows);
     }
