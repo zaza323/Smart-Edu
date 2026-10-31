@@ -1,4 +1,6 @@
-import { AlertTriangle, CheckCircle2, Clock, Info, Loader2, XCircle } from 'lucide-react';
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { AlertTriangle, CheckCircle2, Clock, Info, Loader2, X, XCircle } from 'lucide-react';
 
 export function Spinner({ className = 'w-6 h-6' }) {
   return <Loader2 className={`${className} animate-spin text-accent`} />;
@@ -110,3 +112,40 @@ export function formatDate(ts) {
 }
 
 export { Clock };
+
+/**
+ * نافذة منبثقة في منتصف الشاشة دائماً: تُرسم في body (لا داخل الصفحة) فلا يؤثّر
+ * عليها أي transform في الحاويات، وتتمرّر داخلياً إن طال محتواها. Esc يغلقها.
+ */
+export function Modal({ title, onClose, children, maxWidth = 'max-w-md' }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose?.();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
+    >
+      <div className="min-h-full grid place-items-center p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
+        <div role="dialog" aria-modal="true" aria-label={title} className={`card w-full ${maxWidth} p-6 space-y-5 animate-fadeIn`}>
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-lg font-bold">{title}</h3>
+            <button type="button" onClick={onClose} className="btn btn-ghost btn-sm !px-2 shrink-0" aria-label="إغلاق">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {children}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}

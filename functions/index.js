@@ -17,6 +17,7 @@ const { setGlobalOptions } = require('firebase-functions/v2');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const logger = require('firebase-functions/logger');
 
 initializeApp();
@@ -729,6 +730,182 @@ exports.setSubscription = onCall(async (request) => {
     },
   });
 
+  return { ok: true };
+});
+
+// ---------------------------------------------------------------------------
+//  5.b) إدارة حسابات الطلاب (أدمن): إنشاء، تعديل، حذف
+// ---------------------------------------------------------------------------
+// حسابات تنشئها الإدارة يُدخل بها الطالب برقم هاتفه — مطابق لـ web-app/src/lib/phoneLogin.js
+const PHONE_EMAIL_DOMAIN = 'phone.smart-edu-bank.netlify.app';
+const phoneLoginEmail = (phone) => `${phone}@${PHONE_EMAIL_DOMAIN}`;
+
+function normalizeJordanPhone(input) {
+  let d = String(input || '').replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660)).replace(/\D/g, '');
+  if (d.startsWith('00962')) d = d.slice(5);
+  else if (d.startsWith('962')) d = d.slice(3);
+  if (d.length === 9 && d.startsWith('7')) d = `0${d}`;
+  return /^07[789]\d{7}$/.test(d) ? d : null;
+}
+
+function cleanName(value) {
+  const name = String(value || '').replace(/\s+/g, ' ').trim();
+  if (name.length < 2 || name.length > 80) {
+    throw new HttpsError('invalid-argument', 'اسم الطالب مطلوب (حرفان على الأقل).');
+  }
+  return name;
+}
+
+function checkPassword(value) {
+  const password = String(value || '');
+  if (password.length < 6 || password.length > 64) {
+    throw new HttpsError('invalid-argument', 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.');
+  }
+  return password;
+}
+
+function activeSubscription(adminUid, durationDays) {
+  return {
+    status: 'active',
+    activatedAt: Timestamp.now(),
+    activatedBy: adminUid,
+    expiresAt:
+      durationDays && Number(durationDays) > 0
+        ? Timestamp.fromMillis(Date.now() + Number(durationDays) * 86400000)
+        : null,
+  };
+}
+
+exports.adminCreateStudent = onCall(async (request) => {
+  const adminUid = requireAdmin(request);
+  const { fullName, phone, password, grade = '', subjectIds = [], durationDays = null } = request.data || {};
+
+  const name = cleanName(fullName);
+  const normalized = normalizeJordanPhone(phone);
+  if (!normalized) throw new HttpsError('invalid-argument', 'رقم الهاتف غير صحيح (مثال: 0791234567).');
+  const pass = checkPassword(password);
+
+  const subjectsToActivate = Array.isArray(subjectIds) ? [...new Set(subjectIds.map(String))] : [];
+  if (subjectsToActivate.length) {
+    const snaps = await db.getAll(...subjectsToActivate.map((id) => db.doc(`subjects/${id}`)));
+    const missing = snaps.filter((d) => !d.exists).map((d) => d.id);
+    if (missing.length) throw new HttpsError('invalid-argument', `مادة غير موجودة: ${missing.join('، ')}`);
+  }
+
+  let user;
+  try {
+    user = await getAuth().createUser({ email: phoneLoginEmail(normalized), password: pass, displayName: name });
+  } catch (err) {
+    if (err.code === 'auth/email-already-exists') {
+      throw new HttpsError('already-exists', 'يوجد حساب مسجَّل بهذا الرقم مسبقاً.');
+    }
+    throw err;
+  }
+
+  const subscriptions = {};
+  for (const id of subjectsToActivate) subscriptions[id] = activeSubscription(adminUid, durationDays);
+
+  try {
+    await db.doc(`users/${user.uid}`).set({
+      fullName: name,
+      phone: normalized,
+      email: phoneLoginEmail(normalized),
+      grade: String(grade || '').trim(),
+      role: 'student',
+      subscriptions,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: adminUid,
+    });
+  } catch (err) {
+    // لا نترك حساب دخول بلا مستند طالب
+    await getAuth().deleteUser(user.uid).catch(() => {});
+    throw err;
+  }
+
+  logger.info('adminCreateStudent', { adminUid, uid: user.uid, subjects: subjectsToActivate.length });
+  return { uid: user.uid, phone: normalized };
+});
+
+exports.adminUpdateStudent = onCall(async (request) => {
+  requireAdmin(request);
+  const { uid, fullName, phone, grade, password } = request.data || {};
+  if (typeof uid !== 'string' || !uid) throw new HttpsError('invalid-argument', 'الطالب غير محدد.');
+
+  const ref = db.doc(`users/${uid}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'الطالب غير موجود.');
+  const current = snap.data();
+
+  const update = { updatedAt: FieldValue.serverTimestamp() };
+  const authUpdate = {};
+  if (fullName !== undefined) {
+    update.fullName = cleanName(fullName);
+    authUpdate.displayName = update.fullName;
+  }
+  if (grade !== undefined) update.grade = String(grade || '').trim();
+  if (phone !== undefined) {
+    const isPhoneAccount = String(current.email || '').endsWith(`@${PHONE_EMAIL_DOMAIN}`);
+    if (isPhoneAccount) {
+      // في حسابات الهاتف الرقم هو اسم الدخول، فيتغيّر معه بريد الدخول الداخلي
+      const normalized = normalizeJordanPhone(phone);
+      if (!normalized) throw new HttpsError('invalid-argument', 'رقم الهاتف غير صحيح (مثال: 0791234567).');
+      update.phone = normalized;
+      if (normalized !== current.phone) {
+        update.email = phoneLoginEmail(normalized);
+        authUpdate.email = update.email;
+      }
+    } else {
+      update.phone = String(phone || '').trim();
+    }
+  }
+  if (password) authUpdate.password = checkPassword(password);
+
+  if (Object.keys(authUpdate).length) {
+    try {
+      await getAuth().updateUser(uid, authUpdate);
+    } catch (err) {
+      if (err.code === 'auth/email-already-exists') {
+        throw new HttpsError('already-exists', 'يوجد حساب آخر مسجَّل بهذا الرقم.');
+      }
+      if (err.code !== 'auth/user-not-found') throw err;
+    }
+  }
+  await ref.update(update);
+  // مزامنة الاسم والصف مع لوحة الأبطال إن وُجد للطالب مستند فيها
+  if (update.fullName || update.grade !== undefined) {
+    const board = {};
+    if (update.fullName) board.fullName = update.fullName;
+    if (update.grade !== undefined) board.grade = update.grade;
+    await db.doc(`leaderboard/${uid}`).update(board).catch(() => {});
+  }
+  return { ok: true, phone: update.phone ?? current.phone };
+});
+
+exports.adminDeleteStudent = onCall(async (request) => {
+  const adminUid = requireAdmin(request);
+  const { uid } = request.data || {};
+  if (typeof uid !== 'string' || !uid) throw new HttpsError('invalid-argument', 'الطالب غير محدد.');
+  if (uid === adminUid) throw new HttpsError('failed-precondition', 'لا يمكنك حذف حسابك.');
+
+  const ref = db.doc(`users/${uid}`);
+  const snap = await ref.get();
+  if (snap.exists && snap.data().role !== 'student') {
+    throw new HttpsError('failed-precondition', 'هذا الحساب ليس حساب طالب.');
+  }
+
+  await getAuth().deleteUser(uid).catch((err) => {
+    if (err.code !== 'auth/user-not-found') throw err;
+  });
+  // المستند ومجموعاته الفرعية (الأسئلة المحفوظة)، ولوحة الأبطال، ومحاولات الاختبار.
+  // طلبات الدفع تبقى سجلاً مالياً.
+  const attempts = await db.collection('attempts').where('uid', '==', uid).get();
+  const writer = db.bulkWriter();
+  attempts.docs.forEach((d) => writer.delete(d.ref));
+  writer.delete(db.doc(`leaderboard/${uid}`));
+  await writer.close();
+  await db.recursiveDelete(ref);
+
+  logger.info('adminDeleteStudent', { adminUid, uid, attempts: attempts.size });
   return { ok: true };
 });
 

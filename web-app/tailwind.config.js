@@ -97,9 +97,12 @@ export default {
         cairo: ['Cairo', 'system-ui', 'sans-serif'],
       },
       keyframes: {
+        // النهاية transform: none لا translateY(0): أي transform يبقى (fill-mode both)
+        // يجعل العنصر «حاوية» لأبنائه الـ fixed، فتظهر النوافذ المنبثقة وسط الصفحة
+        // الطويلة لا وسط الشاشة
         fadeIn: {
           '0%': { opacity: '0', transform: 'translateY(8px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+          '100%': { opacity: '1', transform: 'none' },
         },
         pulseSoft: {
           '0%,100%': { opacity: '1' },
