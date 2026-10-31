@@ -7,7 +7,8 @@ const os = require('os');
 const path = require('path');
 
 const fnRequire = require('module').createRequire(path.join(__dirname, '../../functions/package.json'));
-const { initializeApp } = fnRequire('firebase-admin/app');
+const { getApps, initializeApp } = fnRequire('firebase-admin/app');
+const { getAuth } = fnRequire('firebase-admin/auth');
 const firestore = fnRequire('firebase-admin/firestore');
 
 const PROJECT_ID = 'smart-edu-pro-d012b';
@@ -37,11 +38,21 @@ function useCliLogin() {
   process.on('exit', () => fs.rmSync(path.dirname(tmp), { recursive: true, force: true }));
 }
 
-/** Firestore جاهز للاستخدام (أو المحاكي إن ضُبط FIRESTORE_EMULATOR_HOST). */
-function adminFirestore() {
+function ensureApp() {
+  if (getApps().length) return;
   if (!process.env.FIRESTORE_EMULATOR_HOST) useCliLogin();
   initializeApp({ projectId: PROJECT_ID });
+}
+
+/** Firestore جاهز للاستخدام (أو المحاكي إن ضُبط FIRESTORE_EMULATOR_HOST). */
+function adminFirestore() {
+  ensureApp();
   return firestore.getFirestore();
 }
 
-module.exports = { adminFirestore, FieldValue: firestore.FieldValue, Timestamp: firestore.Timestamp };
+function adminAuth() {
+  ensureApp();
+  return getAuth();
+}
+
+module.exports = { adminFirestore, adminAuth, FieldValue: firestore.FieldValue, Timestamp: firestore.Timestamp };

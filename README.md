@@ -62,11 +62,11 @@ cd question-bank && firebase deploy --only functions
 ### د) تعيين حساب الأدمن
 
 1. سجّل حساباً عادياً من التطبيق بالبريد الذي تريده أدمن.
-2. نزّل مفتاح حساب الخدمة: Firebase Console → ⚙ Project Settings → Service accounts → Generate new private key، واحفظه باسم `scripts/serviceAccountKey.json`.
+2. تأكّد أن Firebase CLI مسجَّل بحساب مالك المشروع (`firebase login`) وأن `functions/node_modules` مثبّتة — لا حاجة لمفتاح حساب خدمة.
 3. نفّذ:
 
 ```bash
-cd question-bank/scripts && node set-admin.js your-email@example.com
+node scripts/set-admin.cjs your-email@example.com   # من جذر المشروع، بعد firebase login
 ```
 
 4. سجّل خروجاً ودخولاً مجدداً ليأخذ الحساب الصلاحية، وسيظهر زر «الإدارة».
@@ -152,7 +152,7 @@ cd question-bank && firebase deploy --only hosting:question-bank
 | عدم إرسال الإجابة الصحيحة أثناء الاختبار | `startExam` و`resumeExam` تعيدان `questionText` و`optionsText` فقط — `correctAnswerIndex` لا يغادر الخادم إلا بعد التسليم. |
 | تصحيح من طرف الخادم | `submitExam` تقرأ الأسئلة بـ Admin SDK وتحسب الدرجة وتكتبها في `attempts`. العميل لا يملك أي صلاحية كتابة على `attempts`. |
 | منع تزوير الاشتراك | `users` تسمح للطالب بتعديل `fullName` و`phone` فقط؛ `subscriptions` و`role` تُكتب من Cloud Functions حصراً. |
-| صلاحية الأدمن | Custom Claim (`request.auth.token.admin`) تُضبط من `set-admin.js` — لا يمكن تزويرها من المتصفح. |
+| صلاحية الأدمن | Custom Claim (`request.auth.token.admin`) تُضبط من `scripts/set-admin.cjs` — لا يمكن تزويرها من المتصفح. |
 | رفع الإثباتات | `storage.rules`: صور فقط، أقل من 5MB، داخل مجلد الطالب نفسه. |
 
 ---
