@@ -122,12 +122,20 @@ cd question-bank/scripts && node e2e-storage-test.js
 cd question-bank/web-app && npm run dev
 ```
 
+الواجهة مستضافة على **Netlify** وتُنشر تلقائياً عند الدفع إلى الفرع `main`
+(الإعدادات في `netlify.toml`) — لا يوجد أمر نشر يدوي لها. أما الخادم فعلى Firebase:
+
 ```bash
-cd question-bank && firebase deploy --only hosting:question-bank
+cd question-bank && firebase deploy --only functions
 ```
 
-> النشر يستخدم موقع Hosting منفصل باسم `smart-edu-question-bank`. أنشئه أولاً من
-> Firebase Console → Hosting → Add another site، أو غيّر الاسم في `.firebaserc`.
+> ⚠ انشر الـ functions **قبل** أي تغيير في الواجهة يعتمد عليها، وإلا رأى الطلاب
+> أزراراً يرفضها الخادم. ودفع التغييرات إلى `main` ينشر الواجهة وحدها فوراً.
+
+> `firebase.json` ما زال يحمل هدف Hosting باسم `question-bank` يشير إلى موقع
+> `smart-edu-question-bank` لم يُنشأ قط. هذا لا يعطّل نشر الـ functions، لكن
+> `firebase deploy` بلا `--only` سيفشل عنده — احذف قسم `hosting` منه ومن
+> `.firebaserc` إن لم تعد تنوي استخدام Firebase Hosting.
 
 ---
 
@@ -137,7 +145,7 @@ cd question-bank && firebase deploy --only hosting:question-bank
 استبدل الرابط بعنوان الاستضافة النهائي بعد النشر:
 
 ```html
-<a href="https://smart-edu-question-bank.web.app" class="hover:text-gold-400 transition">بنك الأسئلة</a>
+<a href="https://<عنوان-Netlify>" class="hover:text-gold-400 transition">بنك الأسئلة</a>
 ```
 
 لم أُعدّل `index.html` تلقائياً لأن النطاق النهائي لم يُحسم بعد (نقطة 7 في القسم 13 من الـ PRD).
@@ -207,7 +215,7 @@ leaderboard/{uid}      fullName, grade, subjectScores: { [subjectId]: number }, 
 | 3. الأسعار | **سعر مستقل لكل مادة** (حقل `price`)، والاشتراك يُفعَّل لكل مادة على حدة. |
 | 4. الإشعارات | **داخل التطبيق فقط** حالياً (حالة الاشتراك تتحدّث لحظياً عبر `onSnapshot`). البريد/SMS تحسين لاحق. |
 | 6. تنسيق ملفات Word | السكربت يعتمد على اللون `C00000` ويتحقق متقاطعاً مع جدول الإجابات إن وُجد، **ويتخطّى** أي سؤال متعارض أو ناقص مع طباعة تحذير صريح بدل إدخال بيانات خاطئة. |
-| 7. النطاق | موقع Hosting منفصل `smart-edu-question-bank` ضمن نفس المشروع (قابل للتغيير من `.firebaserc`). |
+| 7. النطاق | الواجهة على **Netlify** (نشر تلقائي من الفرع `main`)، والخادم وقاعدة البيانات والتخزين على Firebase. |
 
 ---
 
