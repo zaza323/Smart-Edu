@@ -18,6 +18,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
+const { examAccessDecision } = require('./lib/examAccess');
 const logger = require('firebase-functions/logger');
 
 initializeApp();
@@ -51,6 +52,10 @@ const MAX_LESSONS_PER_EXAM = 30;
 // مراجعة الأخطاء: كم محاولة سابقة تُقرأ لاستخراج الأسئلة الخاطئة
 const MISTAKES_SCAN_ATTEMPTS = 100;
 
+// المعاينة المجانية: أي طالب مسجَّل يجرّب الدرس الأول من أي مادة دون اشتراك.
+// السقف يبقى صغيراً حتى تظل تجربة تذوّق لا بديلاً عن الاشتراك.
+const FREE_PREVIEW_MAX_QUESTIONS = 10;
+
 // ---------------------------------------------------------------------------
 //  أدوات مساعدة
 // ---------------------------------------------------------------------------
@@ -78,29 +83,40 @@ function shuffle(array) {
   return a;
 }
 
-/** يتحقق أن الطالب مشترك فعلياً بالمادة، ويعيد بيانات الاشتراك. */
-async function assertActiveSubscription(uid, subjectId) {
+/**
+ * يحسم صلاحية الطالب لبدء هذا الاختبار تحديداً، ويعيد `{ preview }`.
+ * القرار نفسه في lib/examAccess.js (دالة خالصة مختبَرة)؛ هنا القراءة من
+ * Firestore وتعليم الاشتراك المنتهي والرفض.
+ */
+async function resolveExamAccess(uid, subjectId, { mode, lessonNumbers, subjectData }) {
   const userSnap = await db.doc(`users/${uid}`).get();
   if (!userSnap.exists) {
     throw new HttpsError('not-found', 'لم يتم العثور على حساب الطالب.');
   }
-  const user = userSnap.data();
-  if (user.role === 'admin') return { status: 'active', admin: true };
 
-  const sub = (user.subscriptions || {})[subjectId];
-  if (!sub || sub.status !== 'active') {
-    throw new HttpsError(
-      'permission-denied',
-      'اشتراكك في هذه المادة غير مفعّل. يرجى رفع إثبات الدفع وانتظار موافقة الإدارة.'
-    );
-  }
-  if (sub.expiresAt && sub.expiresAt.toMillis() < Date.now()) {
+  const decision = examAccessDecision({
+    user: userSnap.data(),
+    subjectId,
+    mode,
+    lessonNumbers,
+    subjectData,
+  });
+
+  if (decision.expired) {
     await db.doc(`users/${uid}`).update({
       [`subscriptions.${subjectId}.status`]: 'expired',
     });
-    throw new HttpsError('permission-denied', 'انتهت صلاحية اشتراكك في هذه المادة.');
   }
-  return sub;
+  if (decision.access === 'full') return { preview: false };
+  if (decision.access === 'preview') return { preview: true };
+
+  throw new HttpsError(
+    'permission-denied',
+    decision.expired
+      ? 'انتهت صلاحية اشتراكك في هذه المادة.'
+      : 'هذه المادة غير مفعّلة لك — جرّب الدرس الأول مجاناً، أو اشترك للوصول لبقية الدروس.',
+    { previewLesson: decision.previewLesson }
+  );
 }
 
 /**
@@ -215,16 +231,22 @@ exports.startExam = onCall(async (request) => {
   } else if (lessonNumber !== null && lessonNumber !== undefined && Number.isFinite(Number(lessonNumber))) {
     lessonNumbers = [Number(lessonNumber)];
   }
-  // count === 'all' → كل الأسئلة المتاحة في النطاق (بحد أقصى MAX_QUESTIONS_PER_EXAM)
+  // المادة تُقرأ قبل فحص الصلاحية: رقم أول درس جزء من شرط المعاينة المجانية
+  const subjectSnap = await db.doc(`subjects/${subjectId}`).get();
+  const subjectData = subjectSnap.exists ? subjectSnap.data() : null;
+
+  const { preview } = await resolveExamAccess(uid, subjectId, {
+    mode,
+    lessonNumbers,
+    subjectData,
+  });
+
+  // count === 'all' → كل الأسئلة المتاحة في النطاق (بحد أقصى المسموح لهذه الجلسة)
+  const ceiling = preview ? FREE_PREVIEW_MAX_QUESTIONS : MAX_QUESTIONS_PER_EXAM;
   const requested =
     count === 'all'
-      ? MAX_QUESTIONS_PER_EXAM
-      : Math.min(
-          MAX_QUESTIONS_PER_EXAM,
-          Math.max(MIN_QUESTIONS_PER_EXAM, parseInt(count, 10) || 20)
-        );
-
-  await assertActiveSubscription(uid, subjectId);
+      ? ceiling
+      : Math.min(ceiling, Math.max(MIN_QUESTIONS_PER_EXAM, parseInt(count, 10) || 20));
 
   // منع فتح أكثر من اختبار جارٍ في نفس الوقت
   const running = await db
@@ -273,11 +295,9 @@ exports.startExam = onCall(async (request) => {
     throw new HttpsError('not-found', 'لا توجد أسئلة متاحة بهذه المواصفات حالياً.');
   }
 
-  const subjectSnap = await db.doc(`subjects/${subjectId}`).get();
-  const minutesPerQuestion =
-    subjectSnap.exists && subjectSnap.data().minutesPerQuestion
-      ? Number(subjectSnap.data().minutesPerQuestion)
-      : DEFAULT_MINUTES_PER_QUESTION;
+  const minutesPerQuestion = subjectData?.minutesPerQuestion
+    ? Number(subjectData.minutesPerQuestion)
+    : DEFAULT_MINUTES_PER_QUESTION;
   const durationSeconds = Math.round(picked.length * minutesPerQuestion * 60);
 
   const safeQuestions = picked.map((doc) => safeQuestion(doc.id, doc.data()));
@@ -291,13 +311,16 @@ exports.startExam = onCall(async (request) => {
   } else {
     lessonLabel = `الدروس ${[...lessonNumbers].sort((a, b) => a - b).join('، ')}`;
   }
+  if (preview) lessonLabel = `معاينة مجانية — ${lessonLabel}`;
 
   const attemptRef = db.collection('attempts').doc();
   await attemptRef.set({
     uid,
     subjectId,
-    subject: subjectSnap.exists ? subjectSnap.data().name : subjectId,
+    subject: subjectData?.name || subjectId,
     mode,
+    // يميّز محاولات المعاينة: لا تُحتسب نقاطها في لوحة الأبطال
+    preview,
     // lessonNumber يبقى للتوافق مع المحاولات القديمة وصفحة السجل
     lessonNumber: lessonNumbers && lessonNumbers.length === 1 ? lessonNumbers[0] : null,
     lessonNumbers,
@@ -311,7 +334,14 @@ exports.startExam = onCall(async (request) => {
     startedAt: FieldValue.serverTimestamp(),
   });
 
-  logger.info('startExam', { uid, subjectId, mode, n: safeQuestions.length, attemptId: attemptRef.id });
+  logger.info('startExam', {
+    uid,
+    subjectId,
+    mode,
+    preview,
+    n: safeQuestions.length,
+    attemptId: attemptRef.id,
+  });
 
   return {
     attemptId: attemptRef.id,
@@ -319,6 +349,7 @@ exports.startExam = onCall(async (request) => {
     timed: Boolean(timed),
     instantFeedback: Boolean(instantFeedback),
     lessonLabel,
+    preview,
     questions: safeQuestions,
   };
 });
@@ -561,8 +592,10 @@ exports.submitExam = onCall(async (request) => {
 
   const batch = db.batch();
 
-  // حسابات الإدارة مستثناة: اختباراتها تجريبية ولا يصحّ أن تتصدّر لوحة الطلاب
-  if (profile.role !== 'admin') {
+  // حسابات الإدارة مستثناة: اختباراتها تجريبية ولا يصحّ أن تتصدّر لوحة الطلاب.
+  // ومحاولات المعاينة المجانية كذلك: درس واحد قابل للإعادة بلا حد، فاحتساب
+  // نقاطه كان سيفتح باباً لتسلّق اللوحة دون اشتراك.
+  if (profile.role !== 'admin' && attempt.preview !== true) {
     batch.set(
       db.doc(`leaderboard/${uid}`),
       {

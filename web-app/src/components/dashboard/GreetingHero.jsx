@@ -18,10 +18,10 @@ export default function GreetingHero({ profile, inProgress, canStart, onStartNew
   }
 
   return (
-    <section className="card p-5 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-5">
-      <div className="flex items-center gap-4 min-w-0">
-        <div className="relative w-14 h-14 shrink-0 rounded-full grid place-items-center bg-accent/15 border border-accent/30 text-accent">
-          <Hand className="w-7 h-7" />
+    <section className="card p-4 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-5">
+      <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+        <div className="relative w-11 h-11 sm:w-14 sm:h-14 shrink-0 rounded-full grid place-items-center bg-accent/15 border border-accent/30 text-accent">
+          <Hand className="w-5 h-5 sm:w-7 sm:h-7" />
           {inProgress && (
             <span className="absolute -top-0.5 -right-0.5 flex w-4 h-4">
               <span className="absolute inset-0 rounded-full bg-emerald-400 opacity-75 animate-ping" />
@@ -31,12 +31,17 @@ export default function GreetingHero({ profile, inProgress, canStart, onStartNew
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold">أهلاً {firstName}</h1>
+            <h1 className="text-xl sm:text-3xl font-extrabold">أهلاً {firstName}</h1>
             {profile?.grade && (
               <span className="badge bg-brand/15 text-brandInk border border-brand/30">{profile.grade}</span>
             )}
           </div>
-          <p className="mt-1 text-sm sm:text-[0.95rem] text-zinc-400 flex items-center gap-2">
+          {/* على الهاتف يكفي الزرّ نفسه — السطر التشجيعي يظهر من sm فأعلى */}
+          <p
+            className={`mt-1 text-sm sm:text-[0.95rem] text-zinc-400 items-center gap-2 ${
+              inProgress ? 'flex' : 'hidden sm:flex'
+            }`}
+          >
             {inProgress ? (
               <>
                 <span className="w-2 h-2 shrink-0 rounded-full bg-emerald-400" />
@@ -56,7 +61,7 @@ export default function GreetingHero({ profile, inProgress, canStart, onStartNew
       {inProgress ? (
         <Link
           to={`/exam/${inProgress.id}`}
-          className="btn bg-brandFill hover:bg-brandFillHover text-white rounded-full px-6 shadow-lg shadow-brand/20"
+          className="btn w-full md:w-auto shrink-0 bg-brandFill hover:bg-brandFillHover text-white rounded-full px-6 shadow-lg shadow-brand/20"
         >
           متابعة المحاولة
           <ArrowLeft className="w-5 h-5" />
@@ -66,7 +71,7 @@ export default function GreetingHero({ profile, inProgress, canStart, onStartNew
           <button
             type="button"
             onClick={onStartNew}
-            className="btn bg-brandFill hover:bg-brandFillHover text-white rounded-full px-6 shadow-lg shadow-brand/20"
+            className="btn w-full md:w-auto shrink-0 bg-brandFill hover:bg-brandFillHover text-white rounded-full px-6 shadow-lg shadow-brand/20"
           >
             <PlayCircle className="w-5 h-5" />
             ابدأ اختباراً

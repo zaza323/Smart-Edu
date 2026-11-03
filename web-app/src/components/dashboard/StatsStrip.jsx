@@ -1,6 +1,5 @@
 import { Award, CircleCheck, Flame, TrendingUp } from 'lucide-react';
 import { ProgressRing } from './widgets';
-import { arCount } from '../landing/common';
 
 function Tile({ label, icon, children }) {
   return (
@@ -16,7 +15,7 @@ function Tile({ label, icon, children }) {
 
 /** أربعة أرقام من محاولات الطالب الفعلية (lib/studentStats.js). */
 export default function StatsStrip({ stats }) {
-  const { totalAnswered, todayAnswered, accuracy, streak, best, examsCount } = stats;
+  const { totalAnswered, todayAnswered, accuracy, streak, best } = stats;
 
   return (
     <section className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
@@ -37,18 +36,13 @@ export default function StatsStrip({ stats }) {
         </div>
       </Tile>
 
-      <Tile label="نسبة الدقة" icon={null}>
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <div className="text-2xl font-extrabold tabular-nums" dir="ltr">{accuracy === null ? '—' : `${accuracy}%`}</div>
-            <div className="mt-1 text-xs text-zinc-500">
-              {accuracy === null ? 'أكمل اختباراً لتظهر' : 'معدل الإجابات الصحيحة'}
-            </div>
-          </div>
-          <ProgressRing value={accuracy ?? 0} className="w-12 h-12" stroke={3.5}>
-            <span className="text-[10px] font-bold tabular-nums">{accuracy ?? 0}%</span>
-          </ProgressRing>
-        </div>
+      {/* النسبة مكتوبة داخل الحلقة فقط — لا تتكرّر بجانبها */}
+      <Tile label="معدل الإجابات الصحيحة" icon={null}>
+        <ProgressRing value={accuracy ?? 0} className="w-16 h-16" stroke={3.5}>
+          <span className="text-sm font-extrabold tabular-nums" dir="ltr">
+            {accuracy === null ? '—' : `${accuracy}%`}
+          </span>
+        </ProgressRing>
       </Tile>
 
       <Tile
@@ -64,10 +58,7 @@ export default function StatsStrip({ stats }) {
         }
       >
         <div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-extrabold tabular-nums">{streak.days}</span>
-            <span className="text-xs text-zinc-400">{streak.days === 1 ? 'يوم تمرين' : 'أيام تمرين'}</span>
-          </div>
+          <div className="text-2xl font-extrabold tabular-nums">{streak.days}</div>
           <div className={`mt-1 text-xs ${streak.activeToday ? 'text-accent' : 'text-zinc-500'}`}>
             {streak.activeToday
               ? 'حافظ على شعلتك للغد!'
@@ -80,14 +71,11 @@ export default function StatsStrip({ stats }) {
 
       <Tile label="أفضل نتيجة" icon={<Award className="w-5 h-5 text-accent" />}>
         <div>
-          <div className="flex items-baseline gap-1.5 min-w-0">
-            <span className="text-2xl font-extrabold tabular-nums" dir="ltr">{best ? `${Math.round(best.percentage)}%` : '—'}</span>
-            {best && <span className="text-xs text-zinc-400 truncate">{best.subject}</span>}
+          <div className="text-2xl font-extrabold tabular-nums" dir="ltr">
+            {best ? `${Math.round(best.percentage)}%` : '—'}
           </div>
-          <div className="mt-1 text-xs text-zinc-500">
-            {examsCount
-              ? `من ${arCount(examsCount, { one: 'اختبار واحد مكتمل', two: 'اختبارين مكتملين', few: 'اختبارات مكتملة', many: 'اختباراً مكتملاً' })}`
-              : 'لا اختبارات مكتملة بعد'}
+          <div className="mt-1 text-xs text-zinc-500 truncate">
+            {best ? best.subject : 'لا اختبارات مكتملة بعد'}
           </div>
         </div>
       </Tile>

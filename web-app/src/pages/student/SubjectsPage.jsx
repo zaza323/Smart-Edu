@@ -8,18 +8,37 @@ import { bundleFullPrice, bundleSubjects, fetchBundles } from '../../lib/bundles
 import { computeStudentStats } from '../../lib/studentStats';
 import { loadExamSession, saveExamSession } from '../../lib/examSession';
 import { countBySubject, subscribeSaved } from '../../lib/savedQuestions';
+import { FREE_PREVIEW_COUNT, firstLesson } from '../../lib/units';
 import { useAuth } from '../../context/AuthContext';
-import { Alert, EmptyState, Spinner } from '../../components/ui';
+import { Alert, BottomSheet, EmptyState, Spinner } from '../../components/ui';
 import GreetingHero from '../../components/dashboard/GreetingHero';
 import RaceCard from '../../components/dashboard/RaceCard';
 import StatsStrip from '../../components/dashboard/StatsStrip';
 import SubjectCard from '../../components/dashboard/SubjectCard';
-import ExamCustomizer, { defaultSetup } from '../../components/dashboard/ExamCustomizer';
+import ExamCustomizer, {
+  ExamSetupFields,
+  ExamStartBar,
+  defaultSetup,
+  deriveScope,
+} from '../../components/dashboard/ExamCustomizer';
 
 // المحاولات تُقرأ لحساب الإحصائيات؛ السقف يحمي من تحميل سجل ضخم دفعة واحدة
 const ATTEMPTS_LIMIT = 200;
 // مراجعة الأخطاء: أقصى عدد أسئلة في الجلسة الواحدة
 const MISTAKES_SESSION_MAX = 25;
+
+/** على الهاتف تُفتح لوحة التخصيص كلوح سفلي بدل لوح طويل مدمج في الصفحة. */
+function useIsMobile() {
+  const query = '(max-width: 767px)';
+  const [mobile, setMobile] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = (e) => setMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return mobile;
+}
 
 /** لوحة الطالب (/app): ترحيب، سباق الأبطال، إحصائيات، المواد، وتخصيص الاختبار. */
 export default function SubjectsPage() {
@@ -41,7 +60,9 @@ export default function SubjectsPage() {
   const [resumeId, setResumeId] = useState('');
   const [reviewBusy, setReviewBusy] = useState({ subjectId: '', mode: '' });
   const [saved, setSaved] = useState({});
+  const [sheetOpen, setSheetOpen] = useState(false);
   const customizerRef = useRef(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!user) return;
@@ -111,12 +132,16 @@ export default function SubjectsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, activeSubjects.length]);
 
-  function openCustomizer(subjectId, preset) {
+  function openCustomizer(subjectId, preset = {}) {
     const subject = activeSubjects.find((s) => s.id === subjectId);
     if (!subject) return;
     setSetup(defaultSetup(subject, preset));
     setStartError('');
     setResumeId('');
+    if (isMobile) {
+      setSheetOpen(true);
+      return;
+    }
     requestAnimationFrame(() => {
       customizerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       if (preset.focusLessons) customizerRef.current?.querySelector('input[type=checkbox]')?.focus();
@@ -159,7 +184,7 @@ export default function SubjectsPage() {
     await launch(
       subject,
       {
-        lessonNumbers: everyLesson ? null : setup.lessons,
+        lessonNumbers: setup.scope === 'all' || everyLesson ? null : setup.lessons,
         count,
         timed: setup.timed,
         instantFeedback: setup.instant,
@@ -189,6 +214,39 @@ export default function SubjectsPage() {
     setReviewBusy({ subjectId: '', mode: '' });
   }
 
+  /**
+   * معاينة مجانية للدرس الأول من مادة غير مفعّلة — بلا مؤقّت ومع شرح فوري.
+   * الصلاحية يفرضها الخادم: أي درس آخر يُرفض حتى لو طُلب من هنا.
+   */
+  async function startPreview(subject) {
+    const lesson = firstLesson(subject);
+    if (!lesson) return;
+    setReviewBusy({ subjectId: subject.id, mode: 'preview' });
+    setError('');
+    await launch(
+      subject,
+      {
+        lessonNumbers: [lesson.number],
+        count: FREE_PREVIEW_COUNT,
+        timed: false,
+        instantFeedback: true,
+      },
+      (err) => setError(err.details?.attemptId ? 'لديك اختبار جارٍ — أكمله أو سلّمه أولاً.' : err.message)
+    );
+    setReviewBusy({ subjectId: '', mode: '' });
+  }
+
+  // ?preview=<subjectId> قادم من صفحة الهبوط: يبدأ المعاينة فوراً
+  useEffect(() => {
+    if (loading) return;
+    const wanted = searchParams.get('preview');
+    if (!wanted) return;
+    setSearchParams({}, { replace: true });
+    const subject = subjects.find((s) => s.id === wanted);
+    if (subject && statusOf(subject.id) !== 'active') startPreview(subject);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   // سباق الأبطال: مادة المحاولة الجارية، وإلا الأكثر تدريباً، وإلا أول مادة مفعّلة
   const raceSubject = useMemo(() => {
     if (activeSubjects.length === 0) return null;
@@ -215,27 +273,45 @@ export default function SubjectsPage() {
     );
   }
 
-  return (
-    <div className="space-y-8">
-      <GreetingHero
-        profile={profile}
-        inProgress={inProgress}
-        canStart={activeSubjects.length > 0}
-        onStartNew={() => setup && openCustomizer(setup.subjectId, { mode: setup.mode })}
-      />
+  // على الهاتف تُرتَّب البطاقات بحيث تأتي المواد (الفعل الأساسي) قبل الإحصائيات والسباق
+  const setupSubject = setup
+    ? activeSubjects.find((s) => s.id === setup.subjectId) || activeSubjects[0]
+    : null;
+  const derived = setup && setupSubject ? deriveScope(setupSubject, setup) : null;
 
-      {raceSubject && profile?.role !== 'admin' && (
-        <RaceCard uid={user.uid} subjectId={raceSubject.id} subjectName={raceSubject.name} />
+  return (
+    <div className="flex flex-col gap-6 sm:gap-8">
+      <div className="order-1">
+        <GreetingHero
+          profile={profile}
+          inProgress={inProgress}
+          canStart={activeSubjects.length > 0}
+          onStartNew={() => setup && openCustomizer(setup.subjectId, { mode: setup.mode })}
+        />
+      </div>
+
+      {error && (
+        <div className="order-2">
+          <Alert type="error">{error}</Alert>
+        </div>
       )}
 
-      {activeSubjects.length > 0 && <StatsStrip stats={stats} />}
+      {activeSubjects.length > 0 && (
+        <div className="order-4">
+          <StatsStrip stats={stats} />
+        </div>
+      )}
 
-      {error && <Alert type="error">{error}</Alert>}
+      {raceSubject && profile?.role !== 'admin' && (
+        <div className="order-5 md:order-3">
+          <RaceCard uid={user.uid} subjectId={raceSubject.id} subjectName={raceSubject.name} />
+        </div>
+      )}
 
       {openBundles.map((b) => (
         <div
           key={b.id}
-          className="card p-5 border-accent/40 bg-gradient-to-l from-accent/[0.08] to-transparent flex flex-col sm:flex-row sm:items-center gap-4"
+          className="order-6 md:order-5 card p-5 border-accent/40 bg-gradient-to-l from-accent/[0.08] to-transparent flex flex-col sm:flex-row sm:items-center gap-4"
         >
           <div className="w-12 h-12 shrink-0 rounded-xl bg-accent on-accent grid place-items-center">
             <Package className="w-6 h-6" />
@@ -262,13 +338,11 @@ export default function SubjectsPage() {
         </div>
       ))}
 
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold">موادك الدراسية</h2>
-            <p className="text-sm text-zinc-500">اختر المادة للبدء باختبار فوري أو مراجعة حسب الدروس</p>
-          </div>
-          {subjects.length > 0 && (
+      <section className="order-3 md:order-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-bold">موادك الدراسية</h2>
+          {/* الفلتر بلا معنى حين تكون المادة واحدة */}
+          {subjects.length > 1 && (
             <div className="flex items-center gap-2">
               {[
                 ['all', 'جميع المواد'],
@@ -313,6 +387,7 @@ export default function SubjectsPage() {
                 savedCount={savedCounts[s.id] || 0}
                 onMistakes={() => startReview(s, 'mistakes')}
                 onSaved={() => startReview(s, 'saved')}
+                onPreview={() => startPreview(s)}
                 busy={reviewBusy.subjectId === s.id ? reviewBusy.mode : ''}
               />
             ))}
@@ -321,17 +396,40 @@ export default function SubjectsPage() {
       </section>
 
       {setup && activeSubjects.length > 0 && (
-        <ExamCustomizer
-          ref={customizerRef}
-          subjects={activeSubjects}
-          setup={setup}
-          onChange={setSetup}
-          onStart={startCustomExam}
-          busy={starting}
-          error={startError}
-          resumeId={resumeId}
-          highlight={highlight}
-        />
+        <div className="order-7 hidden md:block">
+          <ExamCustomizer
+            ref={customizerRef}
+            subjects={activeSubjects}
+            setup={setup}
+            onChange={setSetup}
+            onStart={startCustomExam}
+            busy={starting}
+            error={startError}
+            resumeId={resumeId}
+            highlight={highlight}
+          />
+        </div>
+      )}
+
+      {isMobile && sheetOpen && setup && setupSubject && derived && (
+        <BottomSheet
+          title={`${setupSubject.name} — جلسة جديدة`}
+          subtitle="حدّد نطاق الأسئلة وعددها"
+          onClose={() => setSheetOpen(false)}
+          footer={
+            <ExamStartBar setup={setup} derived={derived} onStart={startCustomExam} busy={starting} />
+          }
+        >
+          <ExamSetupFields
+            subjects={activeSubjects}
+            subject={setupSubject}
+            setup={setup}
+            onChange={setSetup}
+            derived={derived}
+            error={startError}
+            resumeId={resumeId}
+          />
+        </BottomSheet>
       )}
     </div>
   );

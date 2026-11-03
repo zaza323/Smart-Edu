@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Check, Lock, Package, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, Gift, Lock, Package, X } from 'lucide-react';
 import { Spinner } from '../ui';
 import { bundleFullPrice, bundleSubjects } from '../../lib/bundles';
+import { FREE_PREVIEW_COUNT, firstLesson } from '../../lib/units';
 import { SectionHeading, arCount, usePrefersReducedMotion } from './common';
 
 /** المواد والأسعار — تُقرأ مباشرة من Firestore، فأي مادة تُضاف من لوحة الإدارة تظهر هنا تلقائياً. */
@@ -38,7 +39,7 @@ export default function SubjectsSection({ subjects, bundles = [], loading, user 
         <SectionHeading
           eyebrow="المواد المتاحة الآن"
           title="اختر مادتك وابدأ التدريب"
-          text="اشترك في المادة التي تحتاجها، وتدرّب على كل دروسها بأسئلة مصنّفة ومؤقّت يحاكي الامتحان."
+          text="الدرس الأول من كل مادة مجاني — جرّبه قبل ما تشترك، وبعدها افتح باقي الدروس بأسئلة مصنّفة ومؤقّت يحاكي الامتحان."
           className="mb-16"
         />
 
@@ -59,7 +60,12 @@ export default function SubjectsSection({ subjects, bundles = [], loading, user 
               }`}
             >
               {subjects.map((subject) => (
-                <SubjectCard key={subject.id} subject={subject} onSubscribe={() => openSubject(subject)} />
+                <SubjectCard
+                  key={subject.id}
+                  subject={subject}
+                  user={user}
+                  onSubscribe={() => openSubject(subject)}
+                />
               ))}
             </div>
           </>
@@ -76,11 +82,12 @@ export default function SubjectsSection({ subjects, bundles = [], loading, user 
   );
 }
 
-function SubjectCard({ subject, onSubscribe }) {
+function SubjectCard({ subject, user, onSubscribe }) {
   const ref = useRef(null);
   const reducedMotion = usePrefersReducedMotion();
   const questionCount = Number(subject.questionCount) || 0;
   const lessonCount = subject.lessons?.length || 0;
+  const preview = firstLesson(subject);
 
   // ميلان ثلاثي الأبعاد خفيف مع المؤشّر — على أجهزة الفأرة فقط
   const onMove = (e) => {
@@ -102,6 +109,7 @@ function SubjectCard({ subject, onSubscribe }) {
           ? ` موزّعة على ${arCount(lessonCount, { one: 'درس واحد', two: 'درسين', few: 'دروس', many: 'درساً' })}`
           : ''
       }`,
+    preview && `الدرس الأول مجاناً — ${FREE_PREVIEW_COUNT} أسئلة بلا اشتراك`,
     'اختبارات بمؤقّت تحاكي امتحان الوزارة',
     'نتيجة فورية ومراجعة تفصيلية لكل سؤال',
   ].filter(Boolean);
@@ -144,17 +152,35 @@ function SubjectCard({ subject, onSubscribe }) {
         </ul>
       </div>
 
-      <div className="mt-8 pt-6 border-t border-lp-line flex items-center justify-between gap-4">
-        <div>
-          <span className="block text-xs text-lp-muted">رسوم الاشتراك</span>
-          <span className="flex items-baseline gap-1">
-            <span className="text-4xl font-black tabular-nums">{subject.price ?? '—'}</span>
-            <span className="text-[1rem] font-bold text-lp-primaryInk">دينار</span>
-          </span>
+      <div className="mt-8 pt-6 border-t border-lp-line">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <span className="block text-xs text-lp-muted">رسوم الاشتراك</span>
+            <span className="flex items-baseline gap-1">
+              <span className="text-4xl font-black tabular-nums">{subject.price ?? '—'}</span>
+              <span className="text-[1rem] font-bold text-lp-primaryInk">دينار</span>
+            </span>
+          </div>
+          <button type="button" onClick={onSubscribe} className="lp-btn-primary px-6 py-3 min-h-[48px] text-sm">
+            اشترك الآن
+          </button>
         </div>
-        <button type="button" onClick={onSubscribe} className="lp-btn-primary px-6 py-3 min-h-[48px] text-sm">
-          اشترك الآن
-        </button>
+
+        {/* المعاينة تتطلّب حساباً: الخادم يرفض أي طلب غير مسجَّل */}
+        {preview && (
+          <>
+            <Link
+              to={user ? `/app?preview=${subject.id}` : '/register'}
+              className="mt-4 lp-btn-secondary w-full py-3 min-h-[48px] text-sm"
+            >
+              <Gift className="w-4 h-4" />
+              جرّب الدرس الأول مجاناً
+            </Link>
+            <p className="mt-2 text-center text-[11px] text-lp-muted">
+              {user ? preview.title || `الدرس ${preview.number}` : 'بحساب مجاني — بدون أي دفع'}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

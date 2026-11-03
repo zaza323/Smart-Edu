@@ -113,11 +113,8 @@ export function formatDate(ts) {
 
 export { Clock };
 
-/**
- * نافذة منبثقة في منتصف الشاشة دائماً: تُرسم في body (لا داخل الصفحة) فلا يؤثّر
- * عليها أي transform في الحاويات، وتتمرّر داخلياً إن طال محتواها. Esc يغلقها.
- */
-export function Modal({ title, onClose, children, maxWidth = 'max-w-md' }) {
+/** يمنع تمرير الصفحة خلف طبقة منبثقة، ويغلقها بـ Esc. */
+function useLockedBody(onClose) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose?.();
     const prevOverflow = document.body.style.overflow;
@@ -128,6 +125,14 @@ export function Modal({ title, onClose, children, maxWidth = 'max-w-md' }) {
       document.body.style.overflow = prevOverflow;
     };
   }, [onClose]);
+}
+
+/**
+ * نافذة منبثقة في منتصف الشاشة دائماً: تُرسم في body (لا داخل الصفحة) فلا يؤثّر
+ * عليها أي transform في الحاويات، وتتمرّر داخلياً إن طال محتواها. Esc يغلقها.
+ */
+export function Modal({ title, onClose, children, maxWidth = 'max-w-md' }) {
+  useLockedBody(onClose);
 
   return createPortal(
     <div
@@ -144,6 +149,46 @@ export function Modal({ title, onClose, children, maxWidth = 'max-w-md' }) {
           </div>
           {children}
         </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/**
+ * لوح منبثق من أسفل الشاشة — بديل الهاتف للّوحات الطويلة المدمجة في الصفحة.
+ * المحتوى يتمرّر داخلياً ويبقى التذييل (زر البدء مثلاً) ظاهراً دائماً.
+ */
+export function BottomSheet({ title, subtitle, onClose, footer, children }) {
+  useLockedBody(onClose);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-end bg-black/70 backdrop-blur-sm"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="w-full max-h-[92vh] flex flex-col rounded-t-3xl bg-surface border-t border-zinc-800 shadow-2xl animate-fadeIn"
+      >
+        <div className="shrink-0 px-5 pt-3 pb-4 border-b border-zinc-800">
+          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-zinc-700" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="text-lg font-bold truncate">{title}</h3>
+              {subtitle && <p className="text-xs text-zinc-500 mt-0.5 truncate">{subtitle}</p>}
+            </div>
+            <button type="button" onClick={onClose} className="btn btn-ghost btn-sm !px-2 shrink-0" aria-label="إغلاق">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5">{children}</div>
+
+        {footer && <div className="shrink-0 border-t border-zinc-800 px-5 py-4">{footer}</div>}
       </div>
     </div>,
     document.body

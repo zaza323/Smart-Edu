@@ -1,7 +1,20 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Bookmark, Flag, Lock, LockOpen, RefreshCw, Sparkles } from 'lucide-react';
+import {
+  ArrowLeft,
+  BookOpen,
+  Bookmark,
+  ChevronDown,
+  Flag,
+  Gift,
+  Lock,
+  LockOpen,
+  RefreshCw,
+  Sparkles,
+} from 'lucide-react';
 import { Spinner } from '../ui';
 import { arCount } from '../landing/common';
+import { FREE_PREVIEW_COUNT, firstLesson } from '../../lib/units';
 import { ProgressRing } from './widgets';
 
 const STATUS = {
@@ -13,6 +26,8 @@ const STATUS = {
 
 /**
  * بطاقة مادة في لوحة الطالب.
+ * على الهاتف تُعرض الأساسيات فقط (الاسم، الإتقان، زر البدء) وتُطوى بقية
+ * التفاصيل خلف «خيارات أكثر»؛ على الشاشات الأوسع كلّها ظاهرة.
  * onCustomize(preset): يفتح لوحة «تخصيص الاختبار» على هذه المادة بإعداد مسبق.
  */
 export default function SubjectCard({
@@ -24,18 +39,23 @@ export default function SubjectCard({
   onCustomize,
   onMistakes,
   onSaved,
-  busy, // 'mistakes' | 'saved' | ''
+  onPreview,
+  busy, // 'mistakes' | 'saved' | 'preview' | ''
 }) {
+  const [expanded, setExpanded] = useState(false);
   const active = status === 'active';
+  const preview = active ? null : firstLesson(subject);
   const badge = STATUS[status] || STATUS.none;
   const questionCount = Number(subject.questionCount) || 0;
   const lessonCount = subject.lessons?.length || 0;
   const details = [subject.grade, subject.semester].filter(Boolean).join(' — ');
   const mistakes = stats?.mistakes || 0;
+  // مطويّ على الهاتف، ظاهر دائماً من md فأعلى
+  const foldable = `${expanded ? '' : 'hidden'} md:block`;
 
   return (
     <div
-      className={`card p-5 sm:p-6 flex flex-col justify-between gap-5 relative overflow-hidden group transition hover:border-zinc-700 ${
+      className={`card p-5 sm:p-6 flex flex-col justify-between gap-4 relative overflow-hidden group transition hover:border-zinc-700 ${
         active ? '' : 'bg-surface/70'
       }`}
     >
@@ -44,19 +64,20 @@ export default function SubjectCard({
       )}
 
       <div className="relative">
-        <div className="flex items-center justify-between gap-2 mb-4">
+        <div className="flex items-center justify-between gap-2 mb-3">
           <span className={`badge border ${badge.cls}`}>
             {badge.dot && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
             {badge.lock && <Lock className="w-3.5 h-3.5" />}
             {badge.text}
           </span>
-          <span className="text-xs text-zinc-500">
+          <span className={`text-xs text-zinc-500 ${foldable}`}>
             {arCount(questionCount, { one: 'سؤال واحد', two: 'سؤالان', few: 'أسئلة', many: 'سؤالاً' })}
-            {lessonCount > 0 && ` · ${arCount(lessonCount, { one: 'درس واحد', two: 'درسان', few: 'دروس', many: 'درساً' })}`}
+            {lessonCount > 0 &&
+              ` · ${arCount(lessonCount, { one: 'درس واحد', two: 'درسان', few: 'دروس', many: 'درساً' })}`}
           </span>
         </div>
 
-        <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-lg font-bold">{subject.name}</h3>
             {details && <p className="text-sm text-zinc-500 mt-0.5">{details}</p>}
@@ -74,37 +95,47 @@ export default function SubjectCard({
         </div>
 
         {active ? (
-          stats?.attempts ? (
-            <div className="flex flex-wrap gap-1.5">
-              <span className="px-2.5 py-1 rounded-lg bg-zinc-800/80 border border-zinc-700/60 text-xs">
-                آخر نتيجة: <strong className="text-brandInk tabular-nums" dir="ltr">{Math.round(stats.lastPct)}%</strong>
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-zinc-800/80 border border-zinc-700/60 text-xs">
-                أفضل نتيجة: <strong className="text-emerald-300 tabular-nums" dir="ltr">{Math.round(stats.bestPct)}%</strong>
-              </span>
-              {stats.weakest && (
-                <button
-                  type="button"
-                  disabled={stats.weakest.number === null}
-                  onClick={() => onCustomize({ mode: 'custom', lessons: [stats.weakest.number] })}
-                  title="ابدأ اختباراً في هذا الدرس"
-                  className="px-2.5 py-1 rounded-lg bg-accent/10 enabled:hover:bg-accent/20 border border-accent/30 text-accent text-xs flex items-center gap-1 text-right"
-                >
-                  <Flag className="w-3.5 h-3.5 shrink-0" />
-                  الأضعف: {stats.weakest.title}
-                </button>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500">لم تختبر نفسك في هذه المادة بعد — ابدأ باختبار سريع.</p>
-          )
+          <div className={`mt-4 ${foldable}`}>
+            {stats?.attempts ? (
+              <div className="flex flex-wrap gap-1.5">
+                <span className="px-2.5 py-1 rounded-lg bg-zinc-800/80 border border-zinc-700/60 text-xs">
+                  آخر نتيجة:{' '}
+                  <strong className="text-brandInk tabular-nums" dir="ltr">
+                    {Math.round(stats.lastPct)}%
+                  </strong>
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-zinc-800/80 border border-zinc-700/60 text-xs">
+                  أفضل نتيجة:{' '}
+                  <strong className="text-emerald-300 tabular-nums" dir="ltr">
+                    {Math.round(stats.bestPct)}%
+                  </strong>
+                </span>
+                {stats.weakest && (
+                  <button
+                    type="button"
+                    disabled={stats.weakest.number === null}
+                    onClick={() => onCustomize({ mode: 'custom', lessons: [stats.weakest.number] })}
+                    title="ابدأ اختباراً في هذا الدرس"
+                    className="px-2.5 py-1 rounded-lg bg-accent/10 enabled:hover:bg-accent/20 border border-accent/30 text-accent text-xs flex items-center gap-1 text-right"
+                  >
+                    <Flag className="w-3.5 h-3.5 shrink-0" />
+                    الأضعف: {stats.weakest.title}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">لم تختبر نفسك في هذه المادة بعد — ابدأ باختبار سريع.</p>
+            )}
+          </div>
         ) : (
           <>
             {subject.description && (
-              <p className="text-sm text-zinc-400 leading-relaxed mb-4">{subject.description}</p>
+              <p className="text-sm text-zinc-400 leading-relaxed mt-4 line-clamp-2 md:line-clamp-none">
+                {subject.description}
+              </p>
             )}
             {subject.price != null && (
-              <div className="rounded-xl bg-zinc-800/60 border border-zinc-700/50 px-4 py-3 flex items-center justify-between">
+              <div className="mt-4 rounded-xl bg-zinc-800/60 border border-zinc-700/50 px-4 py-3 flex items-center justify-between">
                 <span className="text-xs text-zinc-400">الوصول الكامل للمادة</span>
                 <span className="font-bold text-accent tabular-nums">{subject.price} د.أ</span>
               </div>
@@ -128,13 +159,16 @@ export default function SubjectCard({
               <button
                 type="button"
                 onClick={() => onCustomize({ mode: 'full' })}
-                className="btn w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-100"
+                className="btn w-full bg-brandFill hover:bg-brandFillHover text-white"
               >
                 ابدأ اختباراً جديداً
                 <ArrowLeft className="w-4 h-4" />
               </button>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 text-xs px-1">
+
+            <div
+              className={`${expanded ? 'flex' : 'hidden'} md:flex flex-wrap items-center justify-between gap-x-2 gap-y-2 text-xs px-1`}
+            >
               <button
                 type="button"
                 onClick={() => onCustomize({ mode: 'quick' })}
@@ -161,7 +195,9 @@ export default function SubjectCard({
                 {busy === 'mistakes' ? <Spinner className="w-3.5 h-3.5" /> : 'راجع أخطائي'}
                 <span
                   className={`px-1.5 rounded-full text-[10px] font-bold border ${
-                    mistakes ? 'bg-red-500/15 text-red-300 border-red-500/30' : 'bg-zinc-800 text-zinc-500 border-zinc-700'
+                    mistakes
+                      ? 'bg-red-500/15 text-red-300 border-red-500/30'
+                      : 'bg-zinc-800 text-zinc-500 border-zinc-700'
                   }`}
                 >
                   {mistakes}
@@ -190,17 +226,49 @@ export default function SubjectCard({
                 </span>
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              className="md:hidden flex items-center justify-center gap-1 text-xs text-zinc-500 hover:text-zinc-200"
+            >
+              {expanded ? 'إخفاء الخيارات' : 'خيارات أكثر'}
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+            </button>
           </>
-        ) : status === 'pending' ? (
-          <Link to={`/app/subscribe/${subject.id}`} className="btn btn-ghost w-full">
-            <Sparkles className="w-5 h-5" />
-            متابعة حالة الطلب
-          </Link>
         ) : (
-          <Link to={`/app/subscribe/${subject.id}`} className="btn-primary w-full">
-            {status === 'expired' ? <RefreshCw className="w-5 h-5" /> : <LockOpen className="w-5 h-5" />}
-            {status === 'expired' ? 'جدّد اشتراكك في المادة' : 'اشترك الآن وفعّل المادة'}
-          </Link>
+          <>
+            {/* الدرس الأول مجاناً — الخادم وحده يقرّر أي درس يُسمح به */}
+            {preview && onPreview && (
+              <div className="flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={onPreview}
+                  disabled={Boolean(busy)}
+                  className="btn w-full border border-brand/40 bg-brand/10 text-brandInk hover:bg-brand/20 disabled:opacity-60"
+                >
+                  {busy === 'preview' ? <Spinner className="w-4 h-4" /> : <Gift className="w-4 h-4" />}
+                  جرّب الدرس الأول مجاناً
+                </button>
+                <p className="text-[11px] leading-relaxed text-center text-zinc-500">
+                  {preview.title || `الدرس ${preview.number}`} — {FREE_PREVIEW_COUNT} أسئلة بلا مؤقّت مع شرح فوري
+                </p>
+              </div>
+            )}
+
+            {status === 'pending' ? (
+              <Link to={`/app/subscribe/${subject.id}`} className="btn btn-ghost w-full">
+                <Sparkles className="w-5 h-5" />
+                متابعة حالة الطلب
+              </Link>
+            ) : (
+              <Link to={`/app/subscribe/${subject.id}`} className="btn-primary w-full">
+                {status === 'expired' ? <RefreshCw className="w-5 h-5" /> : <LockOpen className="w-5 h-5" />}
+                {status === 'expired' ? 'جدّد اشتراكك في المادة' : 'اشترك الآن وفعّل المادة'}
+              </Link>
+            )}
+          </>
         )}
       </div>
     </div>

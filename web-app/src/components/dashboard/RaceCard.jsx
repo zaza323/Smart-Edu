@@ -91,15 +91,18 @@ export default function RaceCard({ uid, subjectId, subjectName }) {
   }
 
   return (
-    <section className="card p-5 bg-gradient-to-l from-surface via-surface to-accent/[0.05]">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="w-12 h-12 shrink-0 rounded-xl grid place-items-center bg-accent/15 border border-accent/30 text-accent">
-            <Trophy className="w-6 h-6" />
+    <section className="card p-4 sm:p-5 bg-gradient-to-l from-surface via-surface to-accent/[0.05]">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-5">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-xl grid place-items-center bg-accent/15 border border-accent/30 text-accent">
+            <Trophy className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-accent">سباق لوحة الأبطال — {subjectName}</span>
+              {/* اسم المادة يطول على الهاتف فيُختصر العنوان */}
+              <span className="font-bold text-accent">
+                سباق الأبطال<span className="hidden sm:inline"> — {subjectName}</span>
+              </span>
               {race?.joined && (
                 <span className="badge bg-zinc-800 border border-zinc-700 text-zinc-100">المركز #{race.rank}</span>
               )}
@@ -110,7 +113,7 @@ export default function RaceCard({ uid, subjectId, subjectName }) {
 
         <div className="flex items-center gap-4 lg:w-1/2">
           {race?.joined && (
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 hidden sm:block">
               <div className="flex justify-between text-xs text-zinc-400 mb-1.5">
                 <span>تقدّم الترتيب</span>
                 <span className="font-semibold text-brandInk tabular-nums">{scoreLabel}</span>
