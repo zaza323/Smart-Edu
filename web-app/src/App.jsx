@@ -14,6 +14,7 @@ import ResultPage from './pages/student/ResultPage';
 import HistoryPage from './pages/student/HistoryPage';
 import ProgressPage from './pages/student/ProgressPage';
 import LeaderboardPage from './pages/student/LeaderboardPage';
+import AchievementsPage from './pages/student/AchievementsPage';
 import AccountPage from './pages/student/AccountPage';
 
 import OverviewPage from './pages/admin/OverviewPage';
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="history" element={<HistoryPage />} />
         <Route path="progress" element={<ProgressPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
+        <Route path="achievements" element={<AchievementsPage />} />
         <Route path="account" element={<AccountPage />} />
       </Route>
 

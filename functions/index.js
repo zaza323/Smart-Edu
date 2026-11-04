@@ -19,6 +19,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { examAccessDecision } = require('./lib/examAccess');
+const { applyAnswers, previousDay } = require('./lib/streak');
 const logger = require('firebase-functions/logger');
 
 initializeApp();
@@ -81,6 +82,85 @@ function shuffle(array) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+// ---------------------------------------------------------------------------
+//  الحماسات اليومية
+// ---------------------------------------------------------------------------
+// اليوم الرسمي للنظام بتوقيت عمّان، من ساعة الخادم وحدها: ساعة جهاز الطالب
+// ومنطقته الزمنية لا تدخلان الحساب إطلاقاً. `en-CA` تعطي الصيغة YYYY-MM-DD.
+const ammanDayFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Amman',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const ammanDay = (at = new Date()) => ammanDayFormatter.format(at);
+
+/**
+ * يسجّل أسئلة أجاب عنها الطالب فعلياً، ويمنح الحماسة والمكافأة إن استحقّهما.
+ *
+ * كل شيء داخل معاملة واحدة: قراءة الحالة، وكتابتها، وسجلّ المكافأة، وزيادة
+ * رصيد النقاط. الطلبات المتزامنة (جهازان، أو نقرتان سريعتان) تُعاد تلقائياً
+ * على الحالة الأحدث، فلا تُمنح حماسة مرتين ولا تُحتسب إجابة مرتين.
+ *
+ * معرّف مستند المكافأة حتمي (`uid_day`) كحماية ثانية: إعادة تنفيذ المعاملة
+ * لا تنشئ سجلّين لليوم نفسه.
+ */
+async function recordStreakActivity(uid, questionIds) {
+  const unique = [...new Set((questionIds || []).filter((id) => typeof id === 'string' && id))];
+  if (unique.length === 0) return null;
+
+  const day = ammanDay();
+  const streakRef = db.doc(`streaks/${uid}`);
+
+  try {
+    return await db.runTransaction(async (tx) => {
+      const snap = await tx.get(streakRef);
+      const { state, changed, events } = applyAnswers(snap.exists ? snap.data() : null, day, unique);
+      if (!changed) return { state, events };
+
+      tx.set(streakRef, { ...state, uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+
+      if (events.reward) {
+        tx.set(db.doc(`rewards/${uid}_${day}`), {
+          uid,
+          type: 'streak_bonus',
+          points: events.reward.points,
+          streak: events.reward.streak,
+          reason: `إكمال ${events.reward.streak} حماسات متتالية`,
+          day,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        // النقاط تُضاف إلى مستند لوحة الأبطال نفسه في حقل مستقل عن
+        // `subjectScores`، فلا تختلط مكافأة الالتزام بترتيب المادة
+        tx.set(
+          db.doc(`leaderboard/${uid}`),
+          { bonusPoints: FieldValue.increment(events.reward.points) },
+          { merge: true }
+        );
+      }
+      return { state, events };
+    });
+  } catch (err) {
+    // الحماسات ميزة تحفيزية: فشلها يجب ألا يُسقط تسليم اختبار أو كشف إجابة
+    logger.error('recordStreakActivity failed', { uid, error: err.message });
+    return null;
+  }
+}
+
+/** ما يُعاد للمتصفح من نتيجة الحماسات — بلا معرّفات الأسئلة. */
+function streakPayload(result) {
+  if (!result) return null;
+  const { state, events } = result;
+  return {
+    current: state.current,
+    longest: state.longest,
+    totalEarned: state.totalEarned,
+    todayCount: state.today.count,
+    todayEarned: state.today.earned,
+    events,
+  };
 }
 
 /**
@@ -469,7 +549,9 @@ exports.checkAnswer = onCall(async (request) => {
     };
   });
 
-  return result;
+  // الإجابة ثُبّتت فعلاً، فتُحتسب في نشاط اليوم. التكرار يُرشَّح داخل المعاملة.
+  const streak = await recordStreakActivity(uid, [questionId]);
+  return { ...result, streak: streakPayload(streak) };
 });
 
 // ---------------------------------------------------------------------------
@@ -626,7 +708,18 @@ exports.submitExam = onCall(async (request) => {
   }
   await batch.commit();
 
-  return { attemptId, score, totalQuestions: total, percentage, timeTakenSeconds, review };
+  // الأسئلة التي أجاب عنها فعلاً (لا المتروكة) هي وحدها نشاط اليوم
+  const streak = await recordStreakActivity(uid, [...answerMap.keys()]);
+
+  return {
+    attemptId,
+    score,
+    totalQuestions: total,
+    percentage,
+    timeTakenSeconds,
+    review,
+    streak: streakPayload(streak),
+  };
 });
 
 // ---------------------------------------------------------------------------
@@ -968,8 +1061,63 @@ exports.adminOverview = onCall(async (request) => {
     approvedPayments: approvedSnap.size,
     submittedAttempts: attemptsAgg.data().count,
     totalRevenue,
+    streaks: await streakOverview(),
   };
 });
+
+/**
+ * أرقام الحماسات للوحة الإدارة.
+ * مجموعة `streaks` فيها مستند لكل طالب بدأ فعلاً، فقراءتها كاملة مقبولة بحجم
+ * المنصة؛ وإن كبرت لاحقاً فالبديل عدّادات تراكمية تُحدَّث مع كل منح.
+ */
+async function streakOverview() {
+  const today = ammanDay();
+  const yesterday = previousDay(today);
+
+  const [streaksSnap, rewardsSnap] = await Promise.all([
+    db.collection('streaks').get(),
+    db.collection('rewards').where('day', '==', today).get(),
+  ]);
+
+  let earnedToday = 0;
+  let activeStreaks = 0;
+  let brokenStreaks = 0;
+  let workingToday = 0; // بدأ الحل اليوم ولو لم يبلغ الهدف
+  let totalRewardPoints = 0;
+  let totalStreaksEarned = 0;
+
+  streaksSnap.forEach((doc) => {
+    const s = doc.data();
+    const last = s.lastStreakDay || '';
+    const current = Number(s.current) || 0;
+    totalRewardPoints += Number(s.rewardPoints) || 0;
+    totalStreaksEarned += Number(s.totalEarned) || 0;
+
+    if (s.today?.day === today) {
+      if (s.today.earned) earnedToday += 1;
+      else if ((Number(s.today.count) || 0) > 0) workingToday += 1;
+    }
+    if (current > 0) {
+      if (last === today || last === yesterday) activeStreaks += 1;
+      else brokenStreaks += 1;
+    }
+  });
+
+  const rewardPointsToday = rewardsSnap.docs.reduce((sum, d) => sum + (Number(d.data().points) || 0), 0);
+
+  return {
+    day: today,
+    studentsWithStreakToday: earnedToday,
+    studentsWorkingToday: workingToday,
+    rewardsToday: rewardsSnap.size,
+    rewardPointsToday,
+    activeStreaks,
+    brokenStreaks,
+    totalStreaksEarned,
+    totalRewardPoints,
+    trackedStudents: streaksSnap.size,
+  };
+}
 
 // ---------------------------------------------------------------------------
 //  7) مشغّل استيراد ملفات Word (منطقة us-central1 — انظر importTrigger.js)

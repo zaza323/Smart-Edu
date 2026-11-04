@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { Bookmark, BookmarkCheck, CheckCircle2, Clock, RotateCcw, Trophy, XCircle } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { saveQuestion, subscribeSaved, unsaveQuestion } from '../../lib/savedQuestions';
 import { Alert, Spinner, formatDate, formatDuration } from '../../components/ui';
+import StreakToast from '../../components/StreakToast';
 
 const ARABIC_LETTERS = ['أ', 'ب', 'ج', 'د'];
 
@@ -25,6 +26,19 @@ export default function ResultPage() {
   const [filter, setFilter] = useState('all'); // all | wrong | correct
   const { user } = useAuth();
   const [saved, setSaved] = useState({});
+
+  // أحداث الحماسة تصل من صفحة الاختبار عبر حالة التنقّل. تُلتقط مرة واحدة ثم
+  // تُمسح من التاريخ، فإعادة تحميل صفحة النتيجة لا تعيد عرض الإشعار.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [streakEvent, setStreakEvent] = useState(null);
+
+  useEffect(() => {
+    if (!location.state?.streak) return;
+    setStreakEvent(location.state.streak);
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => (user ? subscribeSaved(user.uid, setSaved) : undefined), [user]);
 
@@ -229,6 +243,8 @@ export default function ResultPage() {
           <p className="text-center text-zinc-500 py-8">لا توجد أسئلة ضمن هذا التصنيف.</p>
         )}
       </div>
+
+      <StreakToast streak={streakEvent} onDone={() => setStreakEvent(null)} />
     </div>
   );
 }

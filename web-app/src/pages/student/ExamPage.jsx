@@ -17,6 +17,7 @@ import {
 import { callFn } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { saveQuestion, subscribeSaved, unsaveQuestion } from '../../lib/savedQuestions';
+import StreakToast from '../../components/StreakToast';
 import {
   clearExamSession,
   loadExamSession,
@@ -43,6 +44,7 @@ export default function ExamPage() {
   const [checked, setChecked] = useState({});
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState('');
+  const [streakEvent, setStreakEvent] = useState(null);
   const [flagged, setFlagged] = useState([]);
   // «مراجعة لاحقاً» يحفظ السؤال في حساب الطالب أيضاً — يبقى بعد انتهاء الاختبار
   const { user } = useAuth();
@@ -166,7 +168,7 @@ export default function ExamPage() {
           questionId,
           selectedIndex,
         }));
-        await callFn('submitExam', {
+        const res = await callFn('submitExam', {
           attemptId,
           answers: payload,
           autoSubmitted: auto,
@@ -174,7 +176,8 @@ export default function ExamPage() {
           pauseCount: pausedRef.current.count,
         });
         clearExamSession(attemptId);
-        navigate(`/app/result/${attemptId}`, { replace: true });
+        // أحداث الحماسة تُمرَّر لصفحة النتيجة لتُعرض هناك مرة واحدة
+        navigate(`/app/result/${attemptId}`, { replace: true, state: { streak: res?.streak || null } });
       } catch (err) {
         if (err.code === 'functions/failed-precondition') {
           clearExamSession(attemptId);
@@ -315,6 +318,8 @@ export default function ExamPage() {
       const res = await callFn('checkAnswer', { attemptId, questionId, selectedIndex: index });
       setChecked((prev) => ({ ...prev, [questionId]: res }));
       setAnswers((prev) => ({ ...prev, [questionId]: res.selectedIndex }));
+      // الشرح الفوري يرسل كل إجابة فور تثبيتها، فتظهر الحماسة لحظة السؤال الخامس
+      if (res.streak?.events?.streakEarned || res.streak?.events?.reward) setStreakEvent(res.streak);
     } catch (err) {
       setAnswers((prev) => {
         const next = { ...prev };
@@ -666,6 +671,8 @@ export default function ExamPage() {
           </div>
         </div>
       )}
+
+      <StreakToast streak={streakEvent} onDone={() => setStreakEvent(null)} />
     </div>
   );
 }

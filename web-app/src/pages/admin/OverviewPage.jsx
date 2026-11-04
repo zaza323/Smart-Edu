@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom';
 import {
   Banknote,
   ClipboardCheck,
+  Coins,
   CreditCard,
   Database,
+  Flame,
+  Gift,
   RefreshCw,
   Users,
 } from 'lucide-react';
@@ -85,8 +88,72 @@ export default function OverviewPage() {
               </Link>
             </Alert>
           )}
+
+          {data.streaks && <StreakStats s={data.streaks} />}
         </>
       ) : null}
     </div>
+  );
+}
+
+/** إحصائيات الحماسات اليومية — الأرقام محسوبة خادمياً بتوقيت عمّان. */
+function StreakStats({ s }) {
+  const committed = s.studentsWithStreakToday + s.studentsWorkingToday;
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <Flame className="w-5 h-5 text-orange-400" />
+          الحماسات اليومية
+        </h2>
+        <span className="text-xs text-zinc-500">
+          يوم {s.day} بتوقيت عمّان · {s.trackedStudents} طالباً في النظام
+        </span>
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard
+          icon={Flame}
+          label="حماسات مُنحت اليوم"
+          value={s.studentsWithStreakToday}
+          hint={`${s.studentsWorkingToday} ما زالوا دون الهدف`}
+          tone="amber"
+        />
+        <StatCard
+          icon={Gift}
+          label="مكافآت اليوم"
+          value={s.rewardsToday}
+          hint={`${s.rewardPointsToday} نقطة وُزّعت اليوم`}
+          tone="amber"
+        />
+        <StatCard
+          icon={Coins}
+          label="إجمالي النقاط الموزّعة"
+          value={s.totalRewardPoints}
+          hint={`${s.totalStreaksEarned} حماسة مكتسبة إجمالاً`}
+          tone="emerald"
+        />
+        <StatCard
+          icon={Flame}
+          label="سلاسل نشطة"
+          value={s.activeStreaks}
+          hint="حماستهم محفوظة اليوم أو أمس"
+          tone="emerald"
+        />
+        <StatCard
+          icon={Flame}
+          label="سلاسل منقطعة"
+          value={s.brokenStreaks}
+          hint="غابوا يوماً فأكثر"
+        />
+        <StatCard
+          icon={ClipboardCheck}
+          label="الملتزمون اليوم"
+          value={committed}
+          hint="بدأوا الحل اليوم"
+          tone="sky"
+        />
+      </div>
+    </section>
   );
 }

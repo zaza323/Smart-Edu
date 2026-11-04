@@ -142,6 +142,26 @@ service cloud.firestore {
                         && request.resource.data.lastSeenAt == request.time);
     }
 
+    // ---------- streaks (الحماسات اليومية) ----------
+    // يقرأها صاحبها فقط — لا يرى طالب تقدّم غيره. والكتابة حصراً من
+    // Cloud Function داخل معاملة ذرّية (Admin SDK يتجاوز القواعد)، فلا يستطيع
+    // المتصفح منح حماسة ولا تعديل عدّاد ولا تزوير يوم.
+    match /streaks/{uid} {
+      allow get: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin();
+      allow write: if false;
+    }
+
+    // ---------- rewards (سجل المكافآت بالنقاط) ----------
+    // سجلّ غير قابل للتعديل: يُكتب مع منح المكافأة في المعاملة نفسها.
+    // القراءة بنفس نمط paymentRequests: الاستعلام يجب أن يُقيَّد بـ uid الطالب
+    // وإلا رفضته القاعدة، فلا يصل أحد إلى مكافآت غيره.
+    match /rewards/{rewardId} {
+      allow get: if isAdmin() || isOwner(resource.data.uid);
+      allow list: if isAdmin() || isOwner(resource.data.uid);
+      allow write: if false;
+    }
+
     // ---------- importJobs (سجلات استيراد ملفات Word) ----------
     match /importJobs/{jobId} {
       allow read, create: if isAdmin();

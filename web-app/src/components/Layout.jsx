@@ -7,6 +7,7 @@ import {
   Trophy,
   CreditCard,
   Database,
+  Flame,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -23,6 +24,7 @@ import { displayLogin } from '../lib/phoneLogin';
 const studentLinks = [
   { to: '/app', label: 'المواد', icon: BookOpenCheck, end: true },
   { to: '/app/leaderboard', label: 'لوحة الأبطال', icon: Trophy },
+  { to: '/app/achievements', label: 'إنجازاتي', icon: Flame },
   { to: '/app/progress', label: 'تحليل الأداء', icon: ChartLine },
   { to: '/app/history', label: 'سجل محاولاتي', icon: ClipboardList },
   { to: '/app/account', label: 'حسابي', icon: User },

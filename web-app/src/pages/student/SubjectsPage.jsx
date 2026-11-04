@@ -9,12 +9,14 @@ import { computeStudentStats } from '../../lib/studentStats';
 import { loadExamSession, saveExamSession } from '../../lib/examSession';
 import { countBySubject, subscribeSaved } from '../../lib/savedQuestions';
 import { FREE_PREVIEW_COUNT, firstLesson } from '../../lib/units';
+import { subscribeStreak } from '../../lib/streak';
 import { useAuth } from '../../context/AuthContext';
 import { Alert, BottomSheet, EmptyState, Spinner } from '../../components/ui';
 import GreetingHero from '../../components/dashboard/GreetingHero';
 import RaceCard from '../../components/dashboard/RaceCard';
 import StatsStrip from '../../components/dashboard/StatsStrip';
 import SubjectCard from '../../components/dashboard/SubjectCard';
+import StreakCard from '../../components/dashboard/StreakCard';
 import ExamCustomizer, {
   ExamSetupFields,
   ExamStartBar,
@@ -60,6 +62,7 @@ export default function SubjectsPage() {
   const [resumeId, setResumeId] = useState('');
   const [reviewBusy, setReviewBusy] = useState({ subjectId: '', mode: '' });
   const [saved, setSaved] = useState({});
+  const [streak, setStreak] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const customizerRef = useRef(null);
   const isMobile = useIsMobile();
@@ -93,6 +96,8 @@ export default function SubjectsPage() {
   }, [user]);
 
   useEffect(() => (user ? subscribeSaved(user.uid, setSaved) : undefined), [user]);
+  // لحظي: تُحدَّث البطاقة فور منح الحماسة من الخادم بلا تحديث صفحة
+  useEffect(() => (user ? subscribeStreak(user.uid, setStreak) : undefined), [user]);
   const savedCounts = useMemo(() => countBySubject(saved), [saved]);
 
   const stats = useMemo(() => computeStudentStats(attempts, subjects), [attempts, subjects]);
@@ -296,14 +301,20 @@ export default function SubjectsPage() {
         </div>
       )}
 
+      {activeSubjects.length > 0 && profile?.role !== 'admin' && (
+        <div className="order-3">
+          <StreakCard streak={streak} />
+        </div>
+      )}
+
       {activeSubjects.length > 0 && (
-        <div className="order-4">
+        <div className="order-5">
           <StatsStrip stats={stats} />
         </div>
       )}
 
       {raceSubject && profile?.role !== 'admin' && (
-        <div className="order-5 md:order-3">
+        <div className="order-6 md:order-4">
           <RaceCard uid={user.uid} subjectId={raceSubject.id} subjectName={raceSubject.name} />
         </div>
       )}
@@ -311,7 +322,7 @@ export default function SubjectsPage() {
       {openBundles.map((b) => (
         <div
           key={b.id}
-          className="order-6 md:order-5 card p-5 border-accent/40 bg-gradient-to-l from-accent/[0.08] to-transparent flex flex-col sm:flex-row sm:items-center gap-4"
+          className="order-7 md:order-6 card p-5 border-accent/40 bg-gradient-to-l from-accent/[0.08] to-transparent flex flex-col sm:flex-row sm:items-center gap-4"
         >
           <div className="w-12 h-12 shrink-0 rounded-xl bg-accent on-accent grid place-items-center">
             <Package className="w-6 h-6" />
@@ -338,7 +349,7 @@ export default function SubjectsPage() {
         </div>
       ))}
 
-      <section className="order-3 md:order-6 space-y-4">
+      <section className="order-4 md:order-7 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold">موادك الدراسية</h2>
           {/* الفلتر بلا معنى حين تكون المادة واحدة */}
@@ -396,7 +407,7 @@ export default function SubjectsPage() {
       </section>
 
       {setup && activeSubjects.length > 0 && (
-        <div className="order-7 hidden md:block">
+        <div className="order-8 hidden md:block">
           <ExamCustomizer
             ref={customizerRef}
             subjects={activeSubjects}
