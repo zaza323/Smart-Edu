@@ -133,8 +133,13 @@ service cloud.firestore {
       allow create, delete: if isAdmin();
 
       // الطالب يزامن اسمه وصفه فقط عند تعديلهما من صفحة «حسابي» — لا النقاط.
+      // ونبضة الحضور وحدها: ربطها بـ request.time يمنع كتابة ختم مستقبلي
+      // يُبقي الطالب ظاهراً «متصلاً» إلى الأبد.
       allow update: if isAdmin()
-                    || (isOwner(uid) && changedKeys().hasOnly(['fullName', 'grade']));
+                    || (isOwner(uid) && changedKeys().hasOnly(['fullName', 'grade']))
+                    || (isOwner(uid)
+                        && changedKeys().hasOnly(['lastSeenAt'])
+                        && request.resource.data.lastSeenAt == request.time);
     }
 
     // ---------- importJobs (سجلات استيراد ملفات Word) ----------

@@ -15,6 +15,7 @@ import {
 import { Crown, RefreshCw, Trophy } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { isOnline } from '../../lib/presence';
 import { Alert, EmptyState, Spinner } from '../../components/ui';
 import PromoBanner from '../../components/PromoBanner';
 
@@ -95,6 +96,7 @@ export default function LeaderboardPage() {
             score: myScore,
             fullName: mine.data().fullName || profile?.fullName || '',
             grade: mine.data().grade || profile?.grade || '',
+            lastSeenAt: mine.data().lastSeenAt,
           });
         }
       } else {
@@ -112,7 +114,16 @@ export default function LeaderboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId]);
 
+  // اللوحة تُقرأ مرة واحدة، فبدون إعادة رسم دورية تبقى نقاط «متصل» مضيئة
+  // استناداً إلى لقطة قديمة. هذا يطفئها مع تقادم آخر ظهور بلا إعادة جلب.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const myRank = rows.find((r) => r.uid === user?.uid)?.rank ?? myEntry?.rank ?? null;
+  const onlineCount = rows.filter((r) => isOnline(r.lastSeenAt)).length;
 
   if (subjects.length === 0) {
     return (
@@ -141,8 +152,14 @@ export default function LeaderboardPage() {
             <Trophy className="w-6 h-6 text-accent" />
             لوحة الأبطال
           </h1>
-          <p className="text-zinc-400 mt-1 text-sm">
-            الترتيب حسب مجموع إجاباتك الصحيحة في المادة — يتحدّث بعد كل اختبار.
+          <p className="text-zinc-400 mt-1 text-sm flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>الترتيب حسب مجموع إجاباتك الصحيحة في المادة — يتحدّث بعد كل اختبار.</span>
+            {onlineCount > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-emerald-300">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                {onlineCount} متصل الآن
+              </span>
+            )}
           </p>
         </div>
         <button onClick={() => load(subjectId)} disabled={loading} className="btn btn-ghost btn-sm">
@@ -226,6 +243,7 @@ export default function LeaderboardPage() {
 
 function Row({ row, isMe }) {
   const badge = badgeOf(row.rank);
+  const online = isOnline(row.lastSeenAt);
   return (
     <div
       className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition ${
@@ -253,10 +271,21 @@ function Row({ row, isMe }) {
       {/* الاسم والصف */}
       <div className="min-w-0 flex-1">
         <p className={`font-bold truncate ${isMe ? 'text-accent' : 'text-zinc-100'}`}>
+          {online && (
+            <span
+              title="متصل الآن"
+              aria-label="متصل الآن"
+              role="img"
+              className="inline-block w-2 h-2 ml-1.5 rounded-full bg-emerald-400 align-middle"
+            />
+          )}
           {row.fullName || 'طالب'}
           {isMe && <span className="mr-2 text-xs font-extrabold text-accent">← أنت</span>}
         </p>
-        <p className="text-xs text-zinc-500 truncate mt-0.5">{row.grade || '—'}</p>
+        <p className="text-xs text-zinc-500 truncate mt-0.5">
+          {row.grade || '—'}
+          {online && <span className="text-emerald-400"> · متصل الآن</span>}
+        </p>
       </div>
 
       {/* عدد الإجابات الصحيحة */}

@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth';
 import { doc, onSnapshot, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { startPresence } from '../lib/presence';
 
 const AuthContext = createContext(null);
 
@@ -51,6 +52,10 @@ export function AuthProvider({ children }) {
     );
     return unsub;
   }, [firebaseUser]);
+
+  // نبضة «متصل الآن» — هنا لا في Layout، لأن صفحة الاختبار خارجه
+  // والطالب أثناء الاختبار هو أكثر من يصحّ عرضه متصلاً
+  useEffect(() => (firebaseUser ? startPresence(firebaseUser.uid) : undefined), [firebaseUser]);
 
   const value = useMemo(
     () => ({
